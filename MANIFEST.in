@@ -1,0 +1,18 @@
+include MANIFEST.in
+include requirements.txt
+include *.json
+include *.md
+include *.py
+include *.txt
+recursive-include itec_integrations *.css
+recursive-include itec_integrations *.csv
+recursive-include itec_integrations *.html
+recursive-include itec_integrations *.ico
+recursive-include itec_integrations *.js
+recursive-include itec_integrations *.json
+recursive-include itec_integrations *.md
+recursive-include itec_integrations *.png
+recursive-include itec_integrations *.py
+recursive-include itec_integrations *.svg
+recursive-include itec_integrations *.txt
+recursive-exclude itec_integrations *.pyc
