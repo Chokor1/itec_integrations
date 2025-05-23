@@ -1,0 +1,79 @@
+{
+ "actions": [],
+ "allow_rename": 1,
+ "creation": "2025-05-22 15:08:59.193721",
+ "doctype": "DocType",
+ "editable_grid": 1,
+ "engine": "InnoDB",
+ "field_order": [
+  "code",
+  "designation",
+  "price",
+  "stock",
+  "main_category",
+  "brand",
+  "description_html"
+ ],
+ "fields": [
+  {
+   "fieldname": "code",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "in_preview": 1,
+   "label": "CODE"
+  },
+  {
+   "fieldname": "designation",
+   "fieldtype": "Small Text",
+   "in_list_view": 1,
+   "in_preview": 1,
+   "label": "DESIGNATION"
+  },
+  {
+   "fieldname": "price",
+   "fieldtype": "Currency",
+   "in_preview": 1,
+   "label": "PRICE",
+   "search_index": 1
+  },
+  {
+   "fieldname": "stock",
+   "fieldtype": "Float",
+   "in_preview": 1,
+   "label": "STOCK",
+   "search_index": 1
+  },
+  {
+   "fieldname": "main_category",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "in_preview": 1,
+   "label": "CATEGORIA PRINCIPAL "
+  },
+  {
+   "fieldname": "brand",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "in_preview": 1,
+   "label": "MARCA"
+  },
+  {
+   "fieldname": "description_html",
+   "fieldtype": "Small Text",
+   "in_list_view": 1,
+   "in_preview": 1,
+   "label": "DESCRICAO"
+  }
+ ],
+ "index_web_pages_for_search": 1,
+ "istable": 1,
+ "links": [],
+ "modified": "2025-05-22 16:40:49.880636",
+ "modified_by": "Administrator",
+ "module": "Itec Integrations",
+ "name": "Stylus Stock History Item",
+ "owner": "Administrator",
+ "permissions": [],
+ "sort_field": "modified",
+ "sort_order": "DESC"
+}
