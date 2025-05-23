@@ -31,7 +31,9 @@ app_license = "MIT"
 # page_js = {"page" : "public/js/file.js"}
 
 # include js in doctype views
-# doctype_js = {"doctype" : "public/js/doctype.js"}
+doctype_js = {
+    "Stylus Sync Stock Setting": "public/js/stylus_sync_stock_setting.js"
+}
 # doctype_list_js = {"doctype" : "public/js/doctype_list.js"}
 # doctype_tree_js = {"doctype" : "public/js/doctype_tree.js"}
 # doctype_calendar_js = {"doctype" : "public/js/doctype_calendar.js"}
@@ -106,23 +108,24 @@ app_license = "MIT"
 # Scheduled Tasks
 # ---------------
 
-# scheduler_events = {
-#	"all": [
-#		"itec_integrations.tasks.all"
-#	],
-#	"daily": [
-#		"itec_integrations.tasks.daily"
-#	],
-#	"hourly": [
-#		"itec_integrations.tasks.hourly"
-#	],
-#	"weekly": [
-#		"itec_integrations.tasks.weekly"
-#	]
-#	"monthly": [
-#		"itec_integrations.tasks.monthly"
-#	]
-# }
+scheduler_events = {
+	# "all": [
+	# 	"itec_integrations.tasks.all"
+	# ],
+	# "daily": [
+	# 	"itec_integrations.tasks.daily"
+	# ],
+	"hourly": [
+		"itec_integrations.itec_integrations.doctype.stylus_sync_stock_setting.stylus_sync_stock_setting.run_sync"
+	],
+	# "weekly": [
+	# 	"itec_integrations.tasks.weekly"
+	# ],
+	# "monthly": [
+	# 	"itec_integrations.tasks.monthly"
+	# ]
+}
+
 
 # Testing
 # -------
