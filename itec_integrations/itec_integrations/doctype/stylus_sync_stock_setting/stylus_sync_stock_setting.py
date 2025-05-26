@@ -14,8 +14,8 @@ class StylusSyncStockSetting(Document):
     pass
 
 @frappe.whitelist()
-def run_sync(docname):
-	setting = frappe.get_doc("Stylus Sync Stock Setting", docname)
+def run_sync():
+	setting = frappe.get_single("Stylus Sync Stock Setting")
 
 	if not setting.enabled:
 		return

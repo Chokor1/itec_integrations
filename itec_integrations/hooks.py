@@ -108,22 +108,25 @@ doctype_js = {
 # Scheduled Tasks
 # ---------------
 
+
 scheduler_events = {
-	# "all": [
-	# 	"itec_integrations.tasks.all"
-	# ],
-	# "daily": [
-	# 	"itec_integrations.tasks.daily"
-	# ],
+	"all": [],
+	"daily": [],
+	"daily_long": [],
 	"hourly": [
-		"itec_integrations.itec_integrations.doctype.stylus_sync_stock_setting.stylus_sync_stock_setting.run_sync"
+	
 	],
-	# "weekly": [
-	# 	"itec_integrations.tasks.weekly"
-	# ],
-	# "monthly": [
-	# 	"itec_integrations.tasks.monthly"
-	# ]
+	"hourly_long": [
+
+	],
+	"weekly": [],
+	"monthly": [],
+	"cron": {
+		# Every five minutes
+		"*/5 * * * *": [
+			"itec_integrations.itec_integrations.doctype.stylus_sync_stock_setting.stylus_sync_stock_setting.run_sync",
+		],
+	},
 }
 
 
