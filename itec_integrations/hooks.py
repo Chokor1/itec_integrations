@@ -114,7 +114,7 @@ scheduler_events = {
 	"daily": [],
 	"daily_long": [],
 	"hourly": [
-	
+	"itec_integrations.itec_integrations.doctype.stylus_sync_stock_setting.stylus_sync_stock_setting.run_sync",
 	],
 	"hourly_long": [
 
@@ -124,7 +124,7 @@ scheduler_events = {
 	"cron": {
 		# Every five minutes
 		"*/5 * * * *": [
-			"itec_integrations.itec_integrations.doctype.stylus_sync_stock_setting.stylus_sync_stock_setting.run_sync",
+			
 		],
 	},
 }
