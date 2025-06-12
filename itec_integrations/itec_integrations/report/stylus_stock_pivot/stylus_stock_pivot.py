@@ -1,6 +1,3 @@
-# Copyright (c) 2025, Abbass Chokor and contributors
-# For license information, please see license.txt
-
 import frappe
 from datetime import datetime
 
@@ -54,7 +51,7 @@ def execute(filters=None):
 			`code`,
 			`designation`,		  
 			DATE(`creation`) AS `date`,
-			SUM(`stock`) AS `stock`
+			`stock` AS `stock`
 		FROM
 			`tabStylus Stock History Item`
 		WHERE
