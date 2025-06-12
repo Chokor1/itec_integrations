@@ -1,61 +1,66 @@
+# Copyright (c) 2025, Abbass Chokor and contributors
+# For license information, please see license.txt
+
 import frappe
-from datetime import datetime, timedelta
+
 
 def execute(filters=None):
 	if not filters:
 		filters = {}
 
-	from_date = datetime.strptime(filters.get("from_date"), "%Y-%m-%d")
-	to_date = datetime.strptime(filters.get("to_date"), "%Y-%m-%d")
+	from_date = filters.get("from_date")
+	to_date = filters.get("to_date")
 
-	date_list = []
-	current_date = from_date
-	while current_date <= to_date:
-		date_list.append(current_date.strftime("%Y-%m-%d"))
-		current_date += timedelta(days=1)
+	if not from_date or not to_date:
+		frappe.throw("Please set both From Date and To Date")
 
-	raw_data = frappe.db.sql("""
-		SELECT code, DATE(creation) AS creation_date, stock
-		FROM `tabStylus Stock History Item`
-		WHERE creation BETWEEN %(from_date)s AND %(to_date)s
-		ORDER BY code, creation
-	""", {
-		"from_date": from_date.strftime("%Y-%m-%d"),
-		"to_date": to_date.strftime("%Y-%m-%d")
-	}, as_dict=True)
+    # Step 1: Get distinct dates
+	dates = frappe.db.get_all(
+        "Stylus Stock History Item",
+        fields=["DATE(creation) as date"],
+        filters={"creation": ["between", [from_date, to_date]]},
+        distinct=True,
+        order_by="date"
+    )
+	date_list = [d.date.strftime("%Y-%m-%d") for d in dates]
 
-	item_date_stock = {}
-	for row in raw_data:
-		code = row["code"]
-		date = row["creation_date"]
-		stock = row["stock"]
-
-		if code not in item_date_stock:
-			item_date_stock[code] = {}
-		item_date_stock[code][date] = stock
-
-	data = []
-	for code, stock_by_date in item_date_stock.items():
-		row = {"code": code}
-		last_stock = None
-		seen_any = False
-
-		for date in date_list:
-			if date in stock_by_date:
-				last_stock = stock_by_date[date]
-				seen_any = True
-			row[date] = last_stock if last_stock is not None else 0
-
-		if seen_any:
-			data.append(row)
-
+    # Step 2: Define columns
 	columns = [{"label": "Item Code", "fieldname": "code", "fieldtype": "Data", "width": 150}]
 	for date in date_list:
 		columns.append({
-			"label": date,
-			"fieldname": date,
-			"fieldtype": "Float",
-			"width": 100
-		})
+            "label": date,
+            "fieldname": date,
+            "fieldtype": "Float",
+            "width": 100
+        })
+
+    # Step 3: Get raw stock data
+	raw_data = frappe.db.sql("""
+        SELECT
+            `code`,
+            DATE(`creation`) AS `date`,
+            SUM(`stock`) AS `stock`
+        FROM
+            `tabStylus Stock History Item`
+        WHERE
+            DATE(`creation`) BETWEEN %s AND %s
+        GROUP BY
+            `code`, DATE(`creation`)
+    """, (from_date, to_date), as_dict=True)
+
+    # Step 4: Pivot the data
+	item_map = {}
+	for row in raw_data:
+		item_code = row.code
+		date = row.date.strftime("%Y-%m-%d")
+		stock = row.stock
+
+		if item_code not in item_map:
+			item_map[item_code] = {"code": item_code}
+
+		item_map[item_code][date] = stock
+
+    # Step 5: Prepare data list
+	data = list(item_map.values())
 
 	return columns, data
