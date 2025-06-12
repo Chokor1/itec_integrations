@@ -2,6 +2,7 @@
 # For license information, please see license.txt
 
 import frappe
+from datetime import datetime
 
 
 def execute(filters=None):
@@ -14,42 +15,55 @@ def execute(filters=None):
 	if not from_date or not to_date:
 		frappe.throw("Please set both From Date and To Date")
 
-    # Step 1: Get distinct dates
+	# Step 1: Get distinct dates
 	dates = frappe.db.get_all(
-        "Stylus Stock History Item",
-        fields=["DATE(creation) as date"],
-        filters={"creation": ["between", [from_date, to_date]]},
-        distinct=True,
-        order_by="date"
-    )
-	date_list = [d.date.strftime("%Y-%m-%d") for d in dates]
+		"Stylus Stock History Item",
+		fields=["DATE(creation) as date"],
+		filters={"creation": ["between", [from_date, to_date]]},
+		distinct=True
+	)
 
-    # Step 2: Define columns
-	columns = [{"label": "Item Code", "fieldname": "code", "fieldtype": "Data", "width": 150},{"label": "Designation", "fieldname": "designation", "fieldtype": "Data", "width": 200}]
+	# Ensure dates are formatted and sorted in descending order
+	date_list = sorted(
+		[
+			d.get("date").strftime("%Y-%m-%d")
+			if hasattr(d.get("date"), "strftime")
+			else str(d.get("date"))
+			for d in dates
+		],
+		reverse=True
+	)
+
+	# Step 2: Define columns
+	columns = [
+		{"label": "Item Code", "fieldname": "code", "fieldtype": "Data", "width": 150},
+		{"label": "Designation", "fieldname": "designation", "fieldtype": "Data", "width": 200}
+	]
+
 	for date in date_list:
 		columns.append({
-            "label": date,
-            "fieldname": date,
-            "fieldtype": "Float",
-            "width": 150
-        })
+			"label": date,
+			"fieldname": date,
+			"fieldtype": "Float",
+			"width": 150
+		})
 
-    # Step 3: Get raw stock data
+	# Step 3: Get raw stock data
 	raw_data = frappe.db.sql("""
-        SELECT
-            `code`,
+		SELECT
+			`code`,
 			`designation`,		  
-            DATE(`creation`) AS `date`,
-            SUM(`stock`) AS `stock`
-        FROM
-            `tabStylus Stock History Item`
-        WHERE
-            DATE(`creation`) BETWEEN %s AND %s
-        GROUP BY
-            `code`, DATE(`creation`)
-    """, (from_date, to_date), as_dict=True)
+			DATE(`creation`) AS `date`,
+			SUM(`stock`) AS `stock`
+		FROM
+			`tabStylus Stock History Item`
+		WHERE
+			DATE(`creation`) BETWEEN %s AND %s
+		GROUP BY
+			`code`, DATE(`creation`)
+	""", (from_date, to_date), as_dict=True)
 
-
+	# Step 4: Transform data into row-wise format
 	item_map = {}
 	for row in raw_data:
 		key = row.code
@@ -64,5 +78,6 @@ def execute(filters=None):
 
 		item_map[key][date] = stock
 
+	# Step 5: Return columns and data
 	data = list(item_map.values())
 	return columns, data
