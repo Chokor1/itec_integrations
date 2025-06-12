@@ -49,19 +49,20 @@ def execute(filters=None):
             `code`, DATE(`creation`)
     """, (from_date, to_date), as_dict=True)
 
-    # Step 4: Pivot the data
+
 	item_map = {}
 	for row in raw_data:
-		item_code = row.code
+		key = row.code
 		date = row.date.strftime("%Y-%m-%d")
 		stock = row.stock
 
-		if item_code not in item_map:
-			item_map[item_code] = {"code": item_code}
+		if key not in item_map:
+			item_map[key] = {
+				"code": row.code,
+				"designation": row.designation
+			}
 
-		item_map[item_code][date] = stock
+		item_map[key][date] = stock
 
-    # Step 5: Prepare data list
 	data = list(item_map.values())
-
 	return columns, data
