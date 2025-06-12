@@ -25,19 +25,20 @@ def execute(filters=None):
 	date_list = [d.date.strftime("%Y-%m-%d") for d in dates]
 
     # Step 2: Define columns
-	columns = [{"label": "Item Code", "fieldname": "code", "fieldtype": "Data", "width": 150}]
+	columns = [{"label": "Item Code", "fieldname": "code", "fieldtype": "Data", "width": 150},{"label": "Designation", "fieldname": "designation", "fieldtype": "Data", "width": 200}]
 	for date in date_list:
 		columns.append({
             "label": date,
             "fieldname": date,
             "fieldtype": "Float",
-            "width": 100
+            "width": 150
         })
 
     # Step 3: Get raw stock data
 	raw_data = frappe.db.sql("""
         SELECT
             `code`,
+			`designation`,		  
             DATE(`creation`) AS `date`,
             SUM(`stock`) AS `stock`
         FROM
@@ -48,19 +49,20 @@ def execute(filters=None):
             `code`, DATE(`creation`)
     """, (from_date, to_date), as_dict=True)
 
-    # Step 4: Pivot the data
+
 	item_map = {}
 	for row in raw_data:
-		item_code = row.code
+		key = row.code
 		date = row.date.strftime("%Y-%m-%d")
 		stock = row.stock
 
-		if item_code not in item_map:
-			item_map[item_code] = {"code": item_code}
+		if key not in item_map:
+			item_map[key] = {
+				"code": row.code,
+				"designation": row.designation
+			}
 
-		item_map[item_code][date] = stock
+		item_map[key][date] = stock
 
-    # Step 5: Prepare data list
 	data = list(item_map.values())
-
 	return columns, data
