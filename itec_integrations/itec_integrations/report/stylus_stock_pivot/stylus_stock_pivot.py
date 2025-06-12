@@ -25,7 +25,7 @@ def execute(filters=None):
 	date_list = [d.date.strftime("%Y-%m-%d") for d in dates]
 
     # Step 2: Define columns
-	columns = [{"label": "Item Code", "fieldname": "code", "fieldtype": "Data", "width": 150}]
+	columns = [{"label": "Item Code", "fieldname": "code", "fieldtype": "Data", "width": 150},{"label": "Designation", "fieldname": "designation", "fieldtype": "Data", "width": 200}]
 	for date in date_list:
 		columns.append({
             "label": date,
@@ -38,6 +38,7 @@ def execute(filters=None):
 	raw_data = frappe.db.sql("""
         SELECT
             `code`,
+			`designation`,		  
             DATE(`creation`) AS `date`,
             SUM(`stock`) AS `stock`
         FROM
