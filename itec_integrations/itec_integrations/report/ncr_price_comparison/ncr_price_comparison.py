@@ -41,19 +41,20 @@ def execute(filters=None):
         ncr_price = p.get("price") or 0
 
         # Fetch the corresponding Item
-        item = frappe.db.get_value("Item", {"item_code": product_ref}, ["item_name"], as_dict=True)
+        item = frappe.db.get_value("Item", {"item_code": product_ref, "disabled": 0}, ["item_name"], as_dict=True)
         if item:
             # Now fetch price from Item Price
-            item_price = frappe.db.get_value(
+            item_price = frappe.db.get_all(
                 "Item Price",
-                {
-                    "item_code": product_ref,
-                    "price_list": "Standard Selling",
-                    "selling": 1
+                filters={
+                "item_code": product_ref,
+                "price_list": "Standard Selling",
+                "selling": 1
                 },
-                ["price_list_rate"],
-                as_dict=True
-            )
+                fields=["price_list_rate"],
+                order_by="creation desc",
+                limit=1
+                )
 
 
             item_tax = frappe.db.get_value(
@@ -77,7 +78,7 @@ def execute(filters=None):
 
             if item_price:
                 tax_rate = tax.tax_rate or 0
-                internal_price = (item_price.price_list_rate + item_price.price_list_rate*tax_rate/100) or 0
+                internal_price = (item_price[0].price_list_rate + item_price[0].price_list_rate*tax_rate/100) or 0
                 difference = internal_price - ncr_price
                 percent_diff = (difference / internal_price * 100) if internal_price else 0
 
