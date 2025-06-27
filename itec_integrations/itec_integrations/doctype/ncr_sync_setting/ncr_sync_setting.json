@@ -39,7 +39,7 @@
  "index_web_pages_for_search": 1,
  "issingle": 1,
  "links": [],
- "modified": "2025-06-26 16:52:22.008162",
+ "modified": "2025-06-27 08:18:12.203438",
  "modified_by": "Administrator",
  "module": "Itec Integrations",
  "name": "NCR Sync Setting",
@@ -61,7 +61,17 @@
    "email": 1,
    "print": 1,
    "read": 1,
-   "role": "Stock Manager",
+   "role": "Sales Manager",
+   "share": 1,
+   "write": 1
+  },
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "print": 1,
+   "read": 1,
+   "role": "Purchase Manager",
    "share": 1,
    "write": 1
   }
