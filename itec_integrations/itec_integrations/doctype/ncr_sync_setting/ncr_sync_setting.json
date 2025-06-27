@@ -39,11 +39,7 @@
  "index_web_pages_for_search": 1,
  "issingle": 1,
  "links": [],
-<<<<<<< HEAD
  "modified": "2025-06-27 08:18:12.203438",
-=======
- "modified": "2025-06-26 16:52:22.008162",
->>>>>>> ad14a66c031200711cbbaae1240d33e0c9eec394
  "modified_by": "Administrator",
  "module": "Itec Integrations",
  "name": "NCR Sync Setting",
@@ -67,8 +63,8 @@
    "read": 1,
    "role": "Sales Manager",
    "share": 1,
-   "write": 1
-<<<<<<< HEAD
+   "write": 1,
+   "report": 1
   },
   {
    "create": 1,
@@ -78,9 +74,8 @@
    "read": 1,
    "role": "Purchase Manager",
    "share": 1,
-   "write": 1
-=======
->>>>>>> ad14a66c031200711cbbaae1240d33e0c9eec394
+   "write": 1,
+   "report": 1
   }
  ],
  "sort_field": "modified",

@@ -36,7 +36,6 @@
    "share": 1,
    "write": 1
   },
-<<<<<<< HEAD
   {
    "create": 1,
    "delete": 1,
@@ -60,17 +59,6 @@
    "role": "Purchase Manager",
    "share": 1,
    "write": 1
-=======
-    {
-   "create": 1,
-   "delete": 1,
-   "email": 1,
-   "print": 1,
-   "read": 1,
-   "role": "Sales Manager",
-   "share": 1,
-   "write": 1
->>>>>>> ad14a66c031200711cbbaae1240d33e0c9eec394
   }
  ],
  "sort_field": "modified",
