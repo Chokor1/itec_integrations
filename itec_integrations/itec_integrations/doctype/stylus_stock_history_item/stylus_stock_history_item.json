@@ -12,7 +12,8 @@
   "stock",
   "main_category",
   "brand",
-  "description_html"
+  "description_html",
+  "imagens"
  ],
  "fields": [
   {
@@ -63,12 +64,17 @@
    "in_list_view": 1,
    "in_preview": 1,
    "label": "DESCRICAO"
+  },
+  {
+   "fieldname": "imagens",
+   "fieldtype": "Text",
+   "label": "IMAGENS"
   }
  ],
  "index_web_pages_for_search": 1,
  "istable": 1,
  "links": [],
- "modified": "2025-05-22 16:40:49.880636",
+ "modified": "2025-07-11 15:14:49.373070",
  "modified_by": "Administrator",
  "module": "Itec Integrations",
  "name": "Stylus Stock History Item",
