@@ -53,6 +53,7 @@ def run_sync():
                         "main_category": item.get("CATEGORIA_PRINCIPAL"),
                         "brand": item.get("MARCA"),
                         "description_html": item.get("DESCRICAO"),
+			"imagens": item.get("IMAGENS")
                     },
                 )
 
