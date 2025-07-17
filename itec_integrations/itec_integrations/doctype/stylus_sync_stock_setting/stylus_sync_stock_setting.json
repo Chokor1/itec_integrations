@@ -8,7 +8,9 @@
  "field_order": [
   "enabled",
   "access_key",
-  "last_inventory_sync"
+  "last_inventory_sync",
+  "excluded_items_from_sync_to_website_section",
+  "excluded_items"
  ],
  "fields": [
   {
@@ -30,12 +32,23 @@
    "fieldtype": "Datetime",
    "label": "Last Inventory Sync",
    "read_only": 1
+  },
+  {
+   "fieldname": "excluded_items_from_sync_to_website_section",
+   "fieldtype": "Section Break",
+   "label": "Excluded Items From Sync To Website"
+  },
+  {
+   "fieldname": "excluded_items",
+   "fieldtype": "Table",
+   "label": "Excluded Items",
+   "options": "Website Sync Excluded Item"
   }
  ],
  "index_web_pages_for_search": 1,
  "issingle": 1,
  "links": [],
- "modified": "2025-05-22 17:13:55.324994",
+ "modified": "2025-07-17 16:28:02.387910",
  "modified_by": "Administrator",
  "module": "Itec Integrations",
  "name": "Stylus Sync Stock Setting",

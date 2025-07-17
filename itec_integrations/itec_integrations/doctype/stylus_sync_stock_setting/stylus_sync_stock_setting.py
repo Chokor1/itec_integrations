@@ -20,13 +20,11 @@ def run_sync():
 	if not setting.enabled:
 		return
     
-	# frappe.msgprint(base64.b64encode((setting.access_key + ':').encode()).decode())
 	headers = {
             "Authorization": f"Basic {base64.b64encode((setting.access_key + ':').encode()).decode()}",
 			"Accept": "application/json",
     		"User-Agent": "MyApp/1.0"
         }
-
 	try:
 		response = requests.get(
                 "https://www.stylus.co.ao/encomendas/api/stockparceiros",
@@ -53,6 +51,8 @@ def run_sync():
                         "main_category": item.get("CATEGORIA_PRINCIPAL"),
                         "brand": item.get("MARCA"),
                         "description_html": item.get("DESCRICAO"),
+						"imagens": item.get("IMAGENS"),
+						"imagem_capa": item.get("IMAGEM_CAPA")
                     },
                 )
 
