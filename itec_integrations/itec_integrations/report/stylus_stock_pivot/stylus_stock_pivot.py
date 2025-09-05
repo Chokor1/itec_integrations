@@ -34,9 +34,11 @@ def execute(filters=None):
 	# Step 2: Define columns
 	columns = [
 		{"label": "Item Code", "fieldname": "code", "fieldtype": "Data", "width": 150},
-		{"label": "Designation", "fieldname": "designation", "fieldtype": "Data", "width": 200}
+		{"label": "Designation", "fieldname": "designation", "fieldtype": "Data", "width": 200},
+		{"label": "Main Category", "fieldname": "main_category", "fieldtype": "Data", "width": 150},
+		{"label": "Brand", "fieldname": "brand", "fieldtype": "Data", "width": 150}
 	]
-
+ 
 	for date in date_list:
 		columns.append({
 			"label": date,
@@ -49,7 +51,9 @@ def execute(filters=None):
 	raw_data = frappe.db.sql("""
 		SELECT
 			`code`,
-			`designation`,		  
+			`designation`,
+			`main_category`,
+			`brand`,
 			DATE(`creation`) AS `date`,
 			`stock` AS `stock`
 		FROM
@@ -60,6 +64,26 @@ def execute(filters=None):
 			`code`, DATE(`creation`)
 	""", (from_date, to_date), as_dict=True)
 
+	# Step 4: Transform data into row-wise format
+	item_map = {}
+	for row in raw_data:
+		key = row.code
+		date = row.date.strftime("%Y-%m-%d")
+		stock = row.stock
+
+		if key not in item_map:
+			item_map[key] = {
+				"code": row.code,
+				"designation": row.designation,
+				"main_category": row.main_category,
+				"brand": row.brand
+			}
+
+		item_map[key][date] = stock
+
+	# Step 5: Return columns and data
+	data = list(item_map.values())
+	return columns, data
 	# Step 4: Transform data into row-wise format
 	item_map = {}
 	for row in raw_data:
