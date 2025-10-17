@@ -1,0 +1,91 @@
+{
+ "actions": [],
+ "allow_rename": 1,
+ "creation": "2025-05-22 15:08:59.193721",
+ "doctype": "DocType",
+ "editable_grid": 1,
+ "engine": "InnoDB",
+ "field_order": [
+  "code",
+  "designation",
+  "price",
+  "stock",
+  "main_category",
+  "brand",
+  "description_html",
+  "imagens",
+  "imagem_capa"
+ ],
+ "fields": [
+  {
+   "fieldname": "code",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "in_preview": 1,
+   "label": "CODE"
+  },
+  {
+   "fieldname": "designation",
+   "fieldtype": "Small Text",
+   "in_list_view": 1,
+   "in_preview": 1,
+   "label": "DESIGNATION"
+  },
+  {
+   "fieldname": "price",
+   "fieldtype": "Currency",
+   "in_preview": 1,
+   "label": "PRICE",
+   "search_index": 1
+  },
+  {
+   "fieldname": "stock",
+   "fieldtype": "Float",
+   "in_preview": 1,
+   "label": "STOCK",
+   "search_index": 1
+  },
+  {
+   "fieldname": "main_category",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "in_preview": 1,
+   "label": "CATEGORIA PRINCIPAL "
+  },
+  {
+   "fieldname": "brand",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "in_preview": 1,
+   "label": "MARCA"
+  },
+  {
+   "fieldname": "description_html",
+   "fieldtype": "Small Text",
+   "in_list_view": 1,
+   "in_preview": 1,
+   "label": "DESCRICAO"
+  },
+  {
+   "fieldname": "imagens",
+   "fieldtype": "Text",
+   "label": "IMAGENS"
+  },
+  {
+   "fieldname": "imagem_capa",
+   "fieldtype": "Text",
+   "label": "IMAGEM_CAPA"
+  }
+ ],
+ "index_web_pages_for_search": 1,
+ "istable": 1,
+ "links": [],
+ "modified": "2025-07-17 08:48:09.713994",
+ "modified_by": "Administrator",
+ "module": "Itec Integrations",
+ "name": "Stylus Stock History Item",
+ "owner": "Administrator",
+ "permissions": [],
+ "sort_field": "modified",
+ "sort_order": "DESC"
+}

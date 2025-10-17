@@ -1,0 +1,31 @@
+{
+ "category": "Modules",
+ "charts": [],
+ "creation": "2025-10-16 16:45:16.255747",
+ "developer_mode_only": 0,
+ "disable_user_customization": 0,
+ "docstatus": 0,
+ "doctype": "Workspace",
+ "extends_another_page": 0,
+ "hide_custom": 0,
+ "idx": 0,
+ "is_default": 0,
+ "is_standard": 1,
+ "label": "HP Partnership",
+ "links": [],
+ "modified": "2025-10-16 16:45:22.000192",
+ "modified_by": "Administrator",
+ "module": "HP Partnership",
+ "name": "HP Partnership",
+ "owner": "Administrator",
+ "pin_to_bottom": 0,
+ "pin_to_top": 0,
+ "shortcuts": [
+  {
+   "doc_view": "List",
+   "label": "HP Amplify",
+   "link_to": "HP Amplify",
+   "type": "DocType"
+  }
+ ]
+}

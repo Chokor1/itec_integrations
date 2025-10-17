@@ -1,0 +1,127 @@
+{
+ "actions": [],
+ "allow_rename": 1,
+ "creation": "2025-10-16 11:42:31.641196",
+ "doctype": "DocType",
+ "editable_grid": 1,
+ "engine": "InnoDB",
+ "field_order": [
+  "from_date",
+  "color_igwbe",
+  "to_date",
+  "hp_amplify_settings_section",
+  "reporter_id",
+  "brands",
+  "item_groups",
+  "column_break_f12fv",
+  "warehouses",
+  "suppliers",
+  "force_addremove_items_section",
+  "items_force_add",
+  "column_break_pzk6m",
+  "items_force_remove"
+ ],
+ "fields": [
+  {
+   "bold": 1,
+   "collapsible": 1,
+   "fieldname": "hp_amplify_settings_section",
+   "fieldtype": "Section Break",
+   "label": "HP Amplify Settings"
+  },
+  {
+   "fieldname": "brands",
+   "fieldtype": "Table",
+   "label": "Brands",
+   "options": "HP Amplify Brand"
+  },
+  {
+   "fieldname": "item_groups",
+   "fieldtype": "Table",
+   "label": "Item Groups",
+   "options": "HP Amplify Item Group"
+  },
+  {
+   "fieldname": "column_break_f12fv",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "warehouses",
+   "fieldtype": "Table",
+   "label": "Warehouses",
+   "options": "HP Amplify Warehouse",
+   "reqd": 1
+  },
+  {
+   "fieldname": "suppliers",
+   "fieldtype": "Table",
+   "label": "Suppliers",
+   "options": "HP Amplify Supplier"
+  },
+  {
+   "fieldname": "from_date",
+   "fieldtype": "Date",
+   "label": "From Date"
+  },
+  {
+   "fieldname": "color_igwbe",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "to_date",
+   "fieldtype": "Date",
+   "label": "To Date"
+  },
+  {
+   "fieldname": "reporter_id",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "Reporter ID",
+   "reqd": 1
+  },
+  {
+   "collapsible": 1,
+   "fieldname": "force_addremove_items_section",
+   "fieldtype": "Section Break",
+   "label": "Force Add/Remove Items"
+  },
+  {
+   "fieldname": "items_force_add",
+   "fieldtype": "Table",
+   "label": "Items Force Add",
+   "options": "HP Amplify Item Force Add"
+  },
+  {
+   "fieldname": "column_break_pzk6m",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "items_force_remove",
+   "fieldtype": "Table",
+   "label": "Items Force Remove",
+   "options": "HP Amplify Item Force Remove"
+  }
+ ],
+ "index_web_pages_for_search": 1,
+ "issingle": 1,
+ "links": [],
+ "modified": "2025-10-16 15:14:47.336028",
+ "modified_by": "Administrator",
+ "module": "HP Partnership",
+ "name": "HP Amplify",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "print": 1,
+   "read": 1,
+   "role": "System Manager",
+   "share": 1,
+   "write": 1
+  }
+ ],
+ "sort_field": "modified",
+ "sort_order": "DESC"
+}

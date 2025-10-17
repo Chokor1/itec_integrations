@@ -1,0 +1,70 @@
+{
+ "actions": [],
+ "allow_rename": 1,
+ "creation": "2025-05-22 15:14:42.484499",
+ "doctype": "DocType",
+ "editable_grid": 1,
+ "engine": "InnoDB",
+ "field_order": [
+  "enabled",
+  "access_key",
+  "last_inventory_sync",
+  "excluded_items_from_sync_to_website_section",
+  "excluded_items"
+ ],
+ "fields": [
+  {
+   "default": "0",
+   "fieldname": "enabled",
+   "fieldtype": "Check",
+   "label": "Enabled"
+  },
+  {
+   "fieldname": "access_key",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "access key",
+   "mandatory_depends_on": "eval:doc.enabled",
+   "reqd": 1
+  },
+  {
+   "fieldname": "last_inventory_sync",
+   "fieldtype": "Datetime",
+   "label": "Last Inventory Sync",
+   "read_only": 1
+  },
+  {
+   "fieldname": "excluded_items_from_sync_to_website_section",
+   "fieldtype": "Section Break",
+   "label": "Excluded Items From Sync To Website"
+  },
+  {
+   "fieldname": "excluded_items",
+   "fieldtype": "Table",
+   "label": "Excluded Items",
+   "options": "Website Sync Excluded Item"
+  }
+ ],
+ "index_web_pages_for_search": 1,
+ "issingle": 1,
+ "links": [],
+ "modified": "2025-07-17 16:28:02.387910",
+ "modified_by": "Administrator",
+ "module": "Itec Integrations",
+ "name": "Stylus Sync Stock Setting",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "print": 1,
+   "read": 1,
+   "role": "System Manager",
+   "share": 1,
+   "write": 1
+  }
+ ],
+ "sort_field": "modified",
+ "sort_order": "DESC"
+}
