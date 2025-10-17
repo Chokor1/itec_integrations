@@ -4,15 +4,27 @@
 import frappe
 from frappe import _
 from frappe.model.document import Document
-from frappe.utils import flt, getdate, nowdate, add_to_date
+from frappe.utils import flt, getdate
 import openpyxl
 from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
 from openpyxl.utils import get_column_letter
 import os
 from datetime import datetime
+import re
 
 class HPAmplify(Document):
 	pass
+
+
+def natural_sort_key(text):
+	"""
+	Convert text to a key for natural sorting (alphanumeric sorting)
+	Example: '1', '2', '11' instead of '1', '11', '2'
+	"""
+	def convert(text_part):
+		return int(text_part) if text_part.isdigit() else text_part.lower()
+	
+	return [convert(c) for c in re.split('([0-9]+)', str(text))]
 
 
 @frappe.whitelist()
@@ -68,6 +80,7 @@ def export_hp_amplify_report(from_date, to_date, warehouses, suppliers, brands=N
 def get_hp_amplify_data(from_date, to_date, warehouses, suppliers, brands, item_groups, warehouse_mapping, items_force_add, items_force_remove):
 	"""
 	Get consolidated data for HP Amplify report
+	Uses Stock Ledger Entry for all calculations (no serial number tracking)
 	"""
 	# Extract warehouse and supplier lists
 	warehouse_list = [w.get('warehouse') for w in warehouses if w.get('warehouse')]
@@ -86,22 +99,19 @@ def get_hp_amplify_data(from_date, to_date, warehouses, suppliers, brands, item_
 	# Get items based on filters
 	items = get_filtered_items(warehouse_list, supplier_list, brand_list, item_group_list, force_add_list, force_remove_list)
 	
-	# Build report data
+	# Build report data using Stock Ledger Entry logic (like Stock Balance report)
 	report_data = []
 	
 	for item in items:
 		item_code = item.get('item_code')
-		has_serial_no = item.get('has_serial_no')
 		
-		# Check if item needs serial number tracking
-		if has_serial_no and supplier_list:
-			# Track by serial number for supplier-specific items
-			serial_data = get_serial_number_data(item_code, warehouse_list, supplier_list, from_date, to_date, warehouse_hierarchy, warehouse_mapping)
-			report_data.extend(serial_data)
-		else:
-			# Regular item tracking without serial numbers
-			item_data = get_item_warehouse_data(item_code, warehouse_list, from_date, to_date, supplier_list, warehouse_hierarchy, warehouse_mapping)
-			report_data.extend(item_data)
+		# Get item-warehouse data using Stock Ledger Entry
+		item_data = get_item_warehouse_data_from_sle(item_code, warehouse_list, from_date, to_date, supplier_list, warehouse_hierarchy, warehouse_mapping)
+		report_data.extend(item_data)
+	
+	# Sort report by item_code, then warehouse_code (using natural sorting)
+	if report_data:
+		report_data = sorted(report_data, key=lambda x: (natural_sort_key(x.get('item_code', '')), natural_sort_key(x.get('warehouse_code', ''))))
 	
 	return report_data
 
@@ -112,6 +122,7 @@ def get_filtered_items(warehouse_list, supplier_list, brand_list, item_group_lis
 	Item groups include children if specified
 	Force remove: Exclude even if matches conditions
 	Force add: Include even if doesn't match conditions
+	ONLY returns items relevant to SELECTED warehouses
 	"""
 	# Build item filter conditions
 	conditions = ["i.disabled = 0"]
@@ -127,7 +138,14 @@ def get_filtered_items(warehouse_list, supplier_list, brand_list, item_group_lis
 		item_group_conditions = " OR ".join([f"i.item_group = '{ig}'" for ig in all_item_groups])
 		conditions.append(f"({item_group_conditions})")
 	
-	# Get items that have stock in the warehouses or were purchased from suppliers
+	# Get all warehouses including children
+	all_warehouses = set(warehouse_list)
+	warehouse_hierarchy = build_warehouse_hierarchy(warehouse_list)
+	for parent, children in warehouse_hierarchy.items():
+		all_warehouses.update(children)
+	all_warehouses_list = list(all_warehouses)
+	
+	# Get items that have stock/transactions ONLY in SELECTED warehouses
 	query = f"""
 		SELECT DISTINCT 
 			i.item_code,
@@ -141,7 +159,13 @@ def get_filtered_items(warehouse_list, supplier_list, brand_list, item_group_lis
 			EXISTS (
 				SELECT 1 FROM `tabBin` b 
 				WHERE b.item_code = i.item_code 
-				AND b.warehouse IN ({', '.join(['%s'] * len(warehouse_list))})
+				AND b.warehouse IN ({', '.join(['%s'] * len(all_warehouses_list))})
+			)
+			OR EXISTS (
+				SELECT 1 FROM `tabStock Ledger Entry` sle
+				WHERE sle.item_code = i.item_code 
+				AND sle.warehouse IN ({', '.join(['%s'] * len(all_warehouses_list))})
+				AND sle.is_cancelled = 0
 			)
 			OR EXISTS (
 				SELECT 1 FROM `tabPurchase Order Item` poi
@@ -161,10 +185,12 @@ def get_filtered_items(warehouse_list, supplier_list, brand_list, item_group_lis
 		ORDER BY i.item_code
 	"""
 	
-	params = warehouse_list.copy()
+	# Build params - warehouses repeated for each EXISTS clause
+	params = all_warehouses_list.copy()  # For Bin
+	params.extend(all_warehouses_list)  # For Stock Ledger Entry
 	if supplier_list:
-		params.extend(supplier_list)
-		params.extend(supplier_list)
+		params.extend(supplier_list)  # For Purchase Order
+		params.extend(supplier_list)  # For Purchase Receipt
 	
 	items = frappe.db.sql(query, params, as_dict=1)
 	
@@ -197,25 +223,76 @@ def get_filtered_items(warehouse_list, supplier_list, brand_list, item_group_lis
 	return items
 
 
-def get_item_warehouse_data(item_code, warehouse_list, from_date, to_date, supplier_list, warehouse_hierarchy, warehouse_mapping):
+def get_item_warehouse_data_from_sle(item_code, warehouse_list, from_date, to_date, supplier_list, warehouse_hierarchy, warehouse_mapping):
 	"""
-	Get item data for each warehouse (for non-serialized items or items without supplier tracking)
-	If warehouse is parent, aggregate data from children
-	Uses bulk queries for better performance
+	Get item-warehouse data using Stock Ledger Entry (same logic as Stock Balance report)
+	Calculates opening balance, in_qty, out_qty, and balance qty
+	No serial number tracking - uses actual_qty from Stock Ledger Entry
 	"""
-	data = []
-	processed_warehouses = set()
-	
-	# Get all warehouses including children for bulk query
+	# Get all warehouses including children
 	all_warehouses = set(warehouse_list)
 	for parent, children in warehouse_hierarchy.items():
 		all_warehouses.update(children)
 	
-	# Bulk query for stock balances
-	stock_balances = get_bulk_stock_balance(item_code, list(all_warehouses))
+	all_warehouses_list = list(all_warehouses)
 	
-	# Bulk query for sold quantities
-	sold_quantities = get_bulk_sold_quantity(item_code, list(all_warehouses), from_date, to_date)
+	# Get all Stock Ledger Entries for this item in all warehouses (up to to_date for balance calculation)
+	sle_data = frappe.db.sql("""
+		SELECT 
+			warehouse,
+			posting_date,
+			actual_qty,
+			voucher_type,
+			voucher_no
+		FROM `tabStock Ledger Entry`
+		WHERE item_code = %s
+		AND warehouse IN ({warehouses})
+		AND posting_date <= %s
+		AND is_cancelled = 0
+		ORDER BY posting_date, posting_time, creation
+	""".format(warehouses=', '.join(['%s'] * len(all_warehouses_list))),
+	[item_code] + all_warehouses_list + [to_date], as_dict=1)
+	
+	# Build warehouse balance map (similar to ERPNext Stock Balance report)
+	warehouse_map = {}
+	
+	for entry in sle_data:
+		warehouse = entry.get('warehouse')
+		posting_date = getdate(entry.get('posting_date'))
+		actual_qty = flt(entry.get('actual_qty'))
+		voucher_type = entry.get('voucher_type')
+		
+		if warehouse not in warehouse_map:
+			warehouse_map[warehouse] = {
+				'opening_qty': 0.0,
+				'in_qty': 0.0,
+				'out_qty': 0.0,
+				'bal_qty': 0.0,
+				'sold_qty': 0.0
+			}
+		
+		qty_dict = warehouse_map[warehouse]
+		
+		# Calculate based on date (ERPNext Stock Balance logic)
+		if posting_date < from_date:
+			# Before from_date = opening balance
+			qty_dict['opening_qty'] += actual_qty
+		elif posting_date >= from_date and posting_date <= to_date:
+			# Within date range
+			if actual_qty >= 0:
+				qty_dict['in_qty'] += actual_qty
+			else:
+				qty_dict['out_qty'] += abs(actual_qty)
+				# Track sold quantity specifically
+				if voucher_type in ('Delivery Note', 'Sales Invoice'):
+					qty_dict['sold_qty'] += abs(actual_qty)
+		
+		# Update balance
+		qty_dict['bal_qty'] += actual_qty
+	
+	# Aggregate to parent warehouses and build final data
+	data = []
+	processed_warehouses = set()
 	
 	for warehouse in warehouse_list:
 		# Skip if already processed as a child
@@ -229,226 +306,45 @@ def get_item_warehouse_data(item_code, warehouse_list, from_date, to_date, suppl
 			# Parent warehouse - aggregate from children
 			warehouses_to_aggregate = [warehouse] + children
 			
-			total_stock_balance = sum(stock_balances.get(wh, 0) for wh in warehouses_to_aggregate)
-			total_sold_qty = sum(sold_quantities.get(wh, 0) for wh in warehouses_to_aggregate)
+			total_stock_balance = sum(warehouse_map.get(wh, {}).get('bal_qty', 0) for wh in warehouses_to_aggregate)
+			total_sold_qty = sum(warehouse_map.get(wh, {}).get('sold_qty', 0) for wh in warehouses_to_aggregate)
 			
 			# Mark children as processed
 			for child_warehouse in children:
 				processed_warehouses.add(child_warehouse)
-			
-			# Get supplier info if applicable
-			supplier = None
-			if supplier_list:
-				supplier = get_item_supplier(item_code, supplier_list)
-			
-			# Use amplify code for warehouse display
-			warehouse_code = warehouse_mapping.get(warehouse, warehouse)
-			
-			data.append({
-				'item_code': item_code,
-				'warehouse_code': warehouse_code,
-				'sold_qty': total_sold_qty,
-				'stock_balance': total_stock_balance,
-				'supplier': supplier or ''
-			})
-			processed_warehouses.add(warehouse)
 		else:
-			# Child or standalone warehouse
-			stock_balance = stock_balances.get(warehouse, 0)
-			sold_qty = sold_quantities.get(warehouse, 0)
-			
-			# Get supplier info if applicable
-			supplier = None
-			if supplier_list:
-				supplier = get_item_supplier(item_code, supplier_list)
-			
-			# Use amplify code for warehouse display
-			warehouse_code = warehouse_mapping.get(warehouse, warehouse)
-			
-			data.append({
-				'item_code': item_code,
-				'warehouse_code': warehouse_code,
-				'sold_qty': sold_qty,
-				'stock_balance': stock_balance,
-				'supplier': supplier or ''
-			})
-			processed_warehouses.add(warehouse)
+			# Standalone or child warehouse
+			total_stock_balance = warehouse_map.get(warehouse, {}).get('bal_qty', 0)
+			total_sold_qty = warehouse_map.get(warehouse, {}).get('sold_qty', 0)
+		
+		# Get supplier info if applicable
+		supplier = None
+		if supplier_list:
+			supplier = get_item_supplier(item_code, supplier_list)
+		
+		# Use amplify code for warehouse display
+		warehouse_code = warehouse_mapping.get(warehouse, warehouse)
+		
+		# Always add the warehouse to report, even if stock/sold are 0
+		data.append({
+			'item_code': item_code,
+			'warehouse_code': warehouse_code,
+			'sold_qty': total_sold_qty,
+			'stock_balance': total_stock_balance,
+			'supplier': supplier or ''
+		})
+		processed_warehouses.add(warehouse)
 	
 	return data
-
-
-def get_serial_number_data(item_code, warehouse_list, supplier_list, from_date, to_date, warehouse_hierarchy, warehouse_mapping):
-	"""
-	Get item data tracked by serial number and supplier
-	Aggregates to parent warehouse if applicable
-	Uses efficient bulk queries with serial number tracking
-	"""
-	# Get all warehouses including children
-	all_warehouses = set(warehouse_list)
-	for parent, children in warehouse_hierarchy.items():
-		all_warehouses.update(children)
-	
-	all_warehouses_list = list(all_warehouses)
-	
-	# Get sold serial numbers from Stock Ledger Entry in date range
-	sold_serials_query = """
-		SELECT 
-			sle.serial_no,
-			sle.warehouse,
-			sle.actual_qty,
-			sle.posting_date
-		FROM `tabStock Ledger Entry` sle
-		WHERE sle.item_code = %s
-		AND sle.posting_date BETWEEN %s AND %s
-		AND sle.actual_qty < 0
-		AND sle.voucher_type IN ('Delivery Note', 'Sales Invoice')
-		AND sle.is_cancelled = 0
-		AND sle.serial_no IS NOT NULL
-		AND sle.serial_no != ''
-		ORDER BY sle.posting_date
-	"""
-	
-	sold_entries = frappe.db.sql(sold_serials_query, [item_code, from_date, to_date], as_dict=1)
-	
-	# Parse sold serial numbers and map to supplier
-	sold_serials_map = {}  # serial_no -> {warehouse, qty, supplier}
-	
-	for entry in sold_entries:
-		serial_nos_str = entry.get('serial_no', '')
-		warehouse = entry.get('warehouse')
-		qty = abs(entry.get('actual_qty', 0))
-		
-		# Parse serial numbers (can be comma or newline separated)
-		serial_nos = [s.strip() for s in serial_nos_str.replace('\n', ',').split(',') if s.strip()]
-		
-		for serial_no in serial_nos:
-			sold_serials_map[serial_no] = {
-				'warehouse': warehouse,
-				'qty': 1,  # Each serial = 1 unit
-			}
-	
-	# Get all serial numbers with supplier info
-	if sold_serials_map or all_warehouses_list:
-		# Get current stock serials and sold serials
-		serial_conditions = []
-		serial_params = [item_code]
-		
-		# Add warehouse condition
-		if all_warehouses_list:
-			serial_conditions.append(f"sn.warehouse IN ({', '.join(['%s'] * len(all_warehouses_list))})")
-			serial_params.extend(all_warehouses_list)
-		
-		# Add sold serials condition
-		if sold_serials_map:
-			sold_serial_list = list(sold_serials_map.keys())
-			serial_conditions.append(f"sn.name IN ({', '.join(['%s'] * len(sold_serial_list))})")
-			serial_params.extend(sold_serial_list)
-		
-		where_clause = " OR ".join(serial_conditions) if serial_conditions else "1=1"
-		
-		serial_nos_query = f"""
-			SELECT 
-				sn.name as serial_no,
-				sn.warehouse,
-				sn.supplier
-			FROM `tabSerial No` sn
-			WHERE sn.item_code = %s
-			AND ({where_clause})
-			ORDER BY sn.name
-		"""
-		
-		serial_nos = frappe.db.sql(serial_nos_query, serial_params, as_dict=1)
-	else:
-		serial_nos = []
-	
-	# Build aggregated data by warehouse and supplier
-	warehouse_supplier_data = {}
-	
-	for serial in serial_nos:
-		serial_no = serial.get('serial_no')
-		warehouse = serial.get('warehouse')
-		supplier = serial.get('supplier')
-		
-		# Skip if supplier doesn't match filter
-		if supplier_list and supplier not in supplier_list:
-			continue
-		
-		# Check if this serial was sold
-		sold_info = sold_serials_map.get(serial_no)
-		sold_qty = sold_info['qty'] if sold_info else 0
-		stock_balance = 1 if warehouse and not sold_info else 0
-		
-		# Determine reporting warehouse (parent if child)
-		reporting_warehouse = get_reporting_warehouse(warehouse or (sold_info['warehouse'] if sold_info else None), warehouse_list, warehouse_hierarchy)
-		warehouse_code = warehouse_mapping.get(reporting_warehouse, reporting_warehouse)
-		
-		# Aggregate by warehouse_code and supplier
-		key = (warehouse_code, supplier or '')
-		if key not in warehouse_supplier_data:
-			warehouse_supplier_data[key] = {
-				'item_code': item_code,
-				'warehouse_code': warehouse_code,
-				'sold_qty': 0,
-				'stock_balance': 0,
-				'supplier': supplier or ''
-			}
-		
-		warehouse_supplier_data[key]['sold_qty'] += sold_qty
-		warehouse_supplier_data[key]['stock_balance'] += stock_balance
-	
-	return list(warehouse_supplier_data.values())
-
-
-def get_bulk_stock_balance(item_code, warehouse_list):
-	"""
-	Get current stock balance from Bin for multiple warehouses in one query
-	Returns dict: {warehouse: actual_qty}
-	"""
-	if not warehouse_list:
-		return {}
-	
-	result = frappe.db.sql("""
-		SELECT warehouse, actual_qty
-		FROM `tabBin`
-		WHERE item_code = %s
-		AND warehouse IN ({warehouses})
-	""".format(warehouses=', '.join(['%s'] * len(warehouse_list))),
-	[item_code] + warehouse_list, as_dict=1)
-	
-	return {row['warehouse']: flt(row['actual_qty']) for row in result}
-
-
-def get_bulk_sold_quantity(item_code, warehouse_list, from_date, to_date):
-	"""
-	Calculate sold quantity from Stock Ledger Entry for multiple warehouses in one query
-	Returns dict: {warehouse: sold_qty}
-	Handles serial numbers properly by counting actual transaction quantities
-	"""
-	if not warehouse_list:
-		return {}
-	
-	result = frappe.db.sql("""
-		SELECT 
-			warehouse,
-			SUM(ABS(actual_qty)) as sold_qty
-		FROM `tabStock Ledger Entry`
-		WHERE item_code = %s
-		AND warehouse IN ({warehouses})
-		AND posting_date BETWEEN %s AND %s
-		AND actual_qty < 0
-		AND voucher_type IN ('Delivery Note', 'Sales Invoice')
-		AND is_cancelled = 0
-		GROUP BY warehouse
-	""".format(warehouses=', '.join(['%s'] * len(warehouse_list))),
-	[item_code] + warehouse_list + [from_date, to_date], as_dict=1)
-	
-	return {row['warehouse']: flt(row['sold_qty']) for row in result}
 
 
 def get_item_supplier(item_code, supplier_list):
 	"""
 	Get the primary supplier for an item from recent purchases
 	"""
+	if not supplier_list:
+		return None
+		
 	supplier = frappe.db.sql("""
 		SELECT po.supplier
 		FROM `tabPurchase Order Item` poi
@@ -513,17 +409,31 @@ def get_item_groups_with_children(item_group_list):
 def build_warehouse_hierarchy(warehouse_list):
 	"""
 	Build a mapping of parent warehouses to their children
-	Only includes warehouses from the provided list
+	Automatically discovers ALL children from database
 	"""
 	hierarchy = {}
 	
-	# Get all warehouses with their parent info
+	# For each selected warehouse, check if it's a parent and get ALL its children
+	for warehouse in warehouse_list:
+		# Query database to find ALL children of this warehouse
+		children = frappe.db.sql("""
+			SELECT name
+			FROM `tabWarehouse`
+			WHERE parent_warehouse = %s
+			AND disabled = 0
+		""", [warehouse], as_dict=1)
+		
+		if children:
+			# This warehouse is a parent - add all its children
+			hierarchy[warehouse] = [child['name'] for child in children]
+	
+	# Also check if any selected warehouse is a child of another selected warehouse
 	warehouse_parents = {}
 	for warehouse in warehouse_list:
 		parent = frappe.db.get_value('Warehouse', warehouse, 'parent_warehouse')
 		warehouse_parents[warehouse] = parent
 	
-	# Build parent -> children mapping
+	# Build parent -> children mapping for warehouses in the list
 	for warehouse in warehouse_list:
 		parent = warehouse_parents.get(warehouse)
 		
@@ -531,31 +441,11 @@ def build_warehouse_hierarchy(warehouse_list):
 		if parent and parent in warehouse_list:
 			if parent not in hierarchy:
 				hierarchy[parent] = []
-			hierarchy[parent].append(warehouse)
-		# If this warehouse has no parent, check if any warehouse is its child
-		elif not parent:
-			# Check if any warehouse in the list has this as parent
-			children = [w for w in warehouse_list if warehouse_parents.get(w) == warehouse]
-			if children:
-				hierarchy[warehouse] = children
+			# Add this child if not already added
+			if warehouse not in hierarchy[parent]:
+				hierarchy[parent].append(warehouse)
 	
 	return hierarchy
-
-
-def get_reporting_warehouse(warehouse, warehouse_list, warehouse_hierarchy):
-	"""
-	Get the reporting warehouse (parent if exists in list, otherwise the warehouse itself)
-	"""
-	if not warehouse:
-		return warehouse
-	
-	# Check if this warehouse has a parent in the warehouse_list
-	parent = frappe.db.get_value('Warehouse', warehouse, 'parent_warehouse')
-	
-	if parent and parent in warehouse_list:
-		return parent
-	
-	return warehouse
 
 
 def generate_excel_report(data, from_date, to_date, reporter_id):
