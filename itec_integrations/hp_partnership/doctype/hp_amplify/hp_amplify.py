@@ -225,9 +225,9 @@ def get_filtered_items(warehouse_list, supplier_list, brand_list, item_group_lis
 
 def get_item_warehouse_data_from_sle(item_code, warehouse_list, from_date, to_date, supplier_list, warehouse_hierarchy, warehouse_mapping):
 	"""
-	Get item-warehouse data using Stock Ledger Entry (same logic as Stock Balance report)
-	Calculates opening balance, in_qty, out_qty, and balance qty
-	No serial number tracking - uses actual_qty from Stock Ledger Entry
+	Get item-warehouse data using Stock Ledger Entry
+	Gets stock balance from qty_after_transaction of the last transaction on or before to_date
+	Calculates sold quantity from transactions within the date range
 	"""
 	# Get all warehouses including children
 	all_warehouses = set(warehouse_list)
@@ -236,59 +236,56 @@ def get_item_warehouse_data_from_sle(item_code, warehouse_list, from_date, to_da
 	
 	all_warehouses_list = list(all_warehouses)
 	
-	# Get all Stock Ledger Entries for this item in all warehouses (up to to_date for balance calculation)
-	sle_data = frappe.db.sql("""
+	# Get the last transaction for each warehouse to get the balance (qty_after_transaction)
+	# This gives us the stock balance as of to_date
+	warehouse_map = {}
+	
+	for warehouse in all_warehouses_list:
+		# Get the last Stock Ledger Entry for this item in this warehouse on or before to_date
+		last_sle = frappe.db.sql("""
+			SELECT 
+				qty_after_transaction
+			FROM `tabStock Ledger Entry`
+			WHERE item_code = %s
+			AND warehouse = %s
+			AND posting_date <= %s
+			AND is_cancelled = 0
+			ORDER BY posting_date DESC, posting_time DESC, creation DESC
+			LIMIT 1
+		""", [item_code, warehouse, to_date], as_dict=1)
+		
+		# Get qty_after_transaction from last entry, or 0 if no entries
+		bal_qty = flt(last_sle[0].get('qty_after_transaction')) if last_sle else 0.0
+		
+		warehouse_map[warehouse] = {
+			'bal_qty': bal_qty,
+			'sold_qty': 0.0
+		}
+	
+	# Get sold quantity from transactions within the date range (from_date to to_date)
+	sold_data = frappe.db.sql("""
 		SELECT 
 			warehouse,
-			posting_date,
 			actual_qty,
-			voucher_type,
-			voucher_no
+			voucher_type
 		FROM `tabStock Ledger Entry`
 		WHERE item_code = %s
 		AND warehouse IN ({warehouses})
+		AND posting_date >= %s
 		AND posting_date <= %s
 		AND is_cancelled = 0
-		ORDER BY posting_date, posting_time, creation
+		AND voucher_type IN ('Delivery Note', 'Sales Invoice')
+		AND actual_qty < 0
 	""".format(warehouses=', '.join(['%s'] * len(all_warehouses_list))),
-	[item_code] + all_warehouses_list + [to_date], as_dict=1)
+	[item_code] + all_warehouses_list + [from_date, to_date], as_dict=1)
 	
-	# Build warehouse balance map (similar to ERPNext Stock Balance report)
-	warehouse_map = {}
-	
-	for entry in sle_data:
+	# Sum up sold quantities
+	for entry in sold_data:
 		warehouse = entry.get('warehouse')
-		posting_date = getdate(entry.get('posting_date'))
 		actual_qty = flt(entry.get('actual_qty'))
-		voucher_type = entry.get('voucher_type')
 		
-		if warehouse not in warehouse_map:
-			warehouse_map[warehouse] = {
-				'opening_qty': 0.0,
-				'in_qty': 0.0,
-				'out_qty': 0.0,
-				'bal_qty': 0.0,
-				'sold_qty': 0.0
-			}
-		
-		qty_dict = warehouse_map[warehouse]
-		
-		# Calculate based on date (ERPNext Stock Balance logic)
-		if posting_date < from_date:
-			# Before from_date = opening balance
-			qty_dict['opening_qty'] += actual_qty
-		elif posting_date >= from_date and posting_date <= to_date:
-			# Within date range
-			if actual_qty >= 0:
-				qty_dict['in_qty'] += actual_qty
-			else:
-				qty_dict['out_qty'] += abs(actual_qty)
-				# Track sold quantity specifically
-				if voucher_type in ('Delivery Note', 'Sales Invoice'):
-					qty_dict['sold_qty'] += abs(actual_qty)
-		
-		# Update balance
-		qty_dict['bal_qty'] += actual_qty
+		if warehouse in warehouse_map:
+			warehouse_map[warehouse]['sold_qty'] += abs(actual_qty)
 	
 	# Aggregate to parent warehouses and build final data
 	data = []
