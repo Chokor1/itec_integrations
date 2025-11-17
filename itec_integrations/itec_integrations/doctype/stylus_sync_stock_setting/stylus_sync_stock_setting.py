@@ -6,7 +6,7 @@ from frappe.model.document import Document
 import requests
 import base64
 import frappe
-from frappe.utils import now
+from frappe.utils import now, getdate
 
 
 
@@ -57,9 +57,45 @@ def run_sync():
                 )
 
 		history_doc.insert(ignore_permissions=True)
+		_cleanup_stylus_stock_history_duplicates(getdate(history_doc.creation))
 		setting.last_inventory_sync = now()
 		setting.save()
 		frappe.db.commit()
 	except Exception as e:
 		frappe.log_error(frappe.get_traceback(), "Stylus Sync Failed")
 		frappe.throw(f"Stylus Sync failed: {e}")
+
+
+def _cleanup_stylus_stock_history_duplicates(target_date=None):
+	if not target_date:
+		target_date = getdate()
+
+	target_date = getdate(target_date)
+	date_str = target_date.isoformat()
+	histories = frappe.get_all(
+		"Stylus Stock History",
+		filters={
+			"creation": [
+				"between",
+				(f"{date_str} 00:00:00", f"{date_str} 23:59:59"),
+			]
+		},
+		order_by="creation desc",
+		fields=["name"],
+	)
+
+	if len(histories) <= 1:
+		return
+
+	names_to_remove = [row.get("name") for row in histories[1:] if row.get("name")]
+	if not names_to_remove:
+		return
+
+	frappe.db.delete(
+		"Stylus Stock History Item",
+		{"parent": ["in", names_to_remove]},
+	)
+	frappe.db.delete(
+		"Stylus Stock History",
+		{"name": ["in", names_to_remove]},
+	)

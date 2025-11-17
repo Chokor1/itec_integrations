@@ -22,27 +22,31 @@
    "fieldtype": "Data",
    "in_list_view": 1,
    "in_preview": 1,
-   "label": "CODE"
+	  "label": "CODE",
+	  "read_only": 1
   },
   {
    "fieldname": "designation",
    "fieldtype": "Small Text",
    "in_list_view": 1,
    "in_preview": 1,
-   "label": "DESIGNATION"
+	  "label": "DESIGNATION",
+	  "read_only": 1
   },
   {
    "fieldname": "price",
    "fieldtype": "Currency",
    "in_preview": 1,
    "label": "PRICE",
-   "search_index": 1
+	  "read_only": 1,
+	  "search_index": 1
   },
   {
    "fieldname": "stock",
    "fieldtype": "Float",
    "in_preview": 1,
-   "label": "STOCK",
+	  "label": "STOCK",
+	  "read_only": 1,
    "search_index": 1
   },
   {
@@ -50,31 +54,36 @@
    "fieldtype": "Data",
    "in_list_view": 1,
    "in_preview": 1,
-   "label": "CATEGORIA PRINCIPAL "
+	  "label": "CATEGORIA PRINCIPAL ",
+	  "read_only": 1
   },
   {
    "fieldname": "brand",
    "fieldtype": "Data",
    "in_list_view": 1,
    "in_preview": 1,
-   "label": "MARCA"
+	  "label": "MARCA",
+	  "read_only": 1
   },
   {
    "fieldname": "description_html",
    "fieldtype": "Small Text",
    "in_list_view": 1,
    "in_preview": 1,
-   "label": "DESCRICAO"
+	  "label": "DESCRICAO",
+	  "read_only": 1
   },
   {
    "fieldname": "imagens",
    "fieldtype": "Text",
-   "label": "IMAGENS"
+	  "label": "IMAGENS",
+	  "read_only": 1
   },
   {
    "fieldname": "imagem_capa",
    "fieldtype": "Text",
-   "label": "IMAGEM_CAPA"
+	  "label": "IMAGEM_CAPA",
+	  "read_only": 1
   }
  ],
  "index_web_pages_for_search": 1,
