@@ -1,0 +1,23 @@
+{
+ "content": null,
+ "creation": "2025-11-17 14:19:49.988168",
+ "docstatus": 0,
+ "doctype": "Page",
+ "idx": 0,
+ "modified": "2025-11-17 14:21:03.147778",
+ "modified_by": "Administrator",
+ "module": "Itec Integrations",
+ "name": "stylus-stock-variance",
+ "owner": "Administrator",
+ "page_name": "stylus-stock-variance",
+ "roles": [
+  {
+   "role": "Stock Manager"
+  }
+ ],
+ "script": null,
+ "standard": "Yes",
+ "style": null,
+ "system_page": 0,
+ "title": "Stylus Historical Stock Activity"
+}
