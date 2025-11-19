@@ -393,6 +393,16 @@ itec_integrations.pages.StylusStockVariance = class StylusStockVariance {
 				text-align: center;
 			}
 
+			.stylus-stock-variance-wrapper .stylus-sv-table .placeholder-cell {
+				color: var(--gray-400);
+			}
+
+			@media (prefers-color-scheme: dark) {
+				.stylus-stock-variance-wrapper .stylus-sv-table .placeholder-cell {
+					color: rgba(148, 163, 184, 0.75);
+				}
+			}
+
 			.stylus-stock-variance-wrapper .stylus-sv-chart-wrapper {
 				min-height: 240px;
 			}
@@ -561,14 +571,14 @@ itec_integrations.pages.StylusStockVariance = class StylusStockVariance {
 		this.$results.empty();
 		this.show_state('loading', __('Fetching Stylus stock history...'));
 
-		frappe
-			.call({
-				method: 'itec_integrations.itec_integrations.page.stylus_stock_variance.stylus_stock_variance.fetch_stock_variance',
-				args: { filters },
-				freeze: false,
-			})
-			.then((response) => {
-				if (current_request !== this.request_id) return;
+		frappe.call({
+			method: 'itec_integrations.itec_integrations.page.stylus_stock_variance.stylus_stock_variance.fetch_stock_variance',
+			args: { filters },
+			freeze: false,
+			callback: (response) => {
+				if (current_request !== this.request_id) {
+					return;
+				}
 
 				const items = response?.message?.items || [];
 				if (!items.length) {
@@ -578,13 +588,18 @@ itec_integrations.pages.StylusStockVariance = class StylusStockVariance {
 
 				this.hide_state();
 				this.render_items(items);
-			})
-			.catch((error) => {
-				if (current_request !== this.request_id) return;
-				const message = error?.message || __('Unable to load the Stylus stock history. Please try again.');
+			},
+			error: (error) => {
+				if (current_request !== this.request_id) {
+					return;
+				}
+				const message =
+					(error && (error.message || error._server_messages)) ||
+					__('Unable to load the Stylus stock history. Please try again.');
 				this.show_state('error', message);
 				frappe.show_alert({ message, indicator: 'red' }, 7);
-			});
+			},
+		});
 	}
 
 	show_state(state, message) {
@@ -717,9 +732,18 @@ itec_integrations.pages.StylusStockVariance = class StylusStockVariance {
 	}
 
 	render_table(item, parent) {
-		const differences = item.differences || [];
+		const snapshots = (item.history || []).map((entry) => {
+			const priceValue =
+				entry.price !== undefined && entry.price !== null ? Number(entry.price) : null;
+			return {
+				label: entry.label,
+				date: entry.date || this.extract_date_from_label(entry.label),
+				stock: Number(entry.stock) || 0,
+				price: priceValue,
+			};
+		});
 
-		if (!differences.length) {
+		if (!snapshots.length) {
 			$(
 				`<div class="text-muted small">${__(
 					'No stock deviations detected in this period.'
@@ -728,7 +752,12 @@ itec_integrations.pages.StylusStockVariance = class StylusStockVariance {
 			return;
 		}
 
-		const opening_balance = this.get_opening_balance(item);
+		const differences = item.differences || [];
+		const varianceByDate = {};
+		differences.forEach((diff) => {
+			const key = diff.date || this.extract_date_from_label(diff.period);
+			varianceByDate[key] = Number(diff.difference) || 0;
+		});
 
 		const table = $(
 			'<table class="stylus-sv-table table table-bordered table-sm"></table>'
@@ -737,9 +766,8 @@ itec_integrations.pages.StylusStockVariance = class StylusStockVariance {
 		const thead = $('<thead></thead>').appendTo(table);
 		const header_row = $('<tr></tr>').appendTo(thead);
 		header_row.append(`<th>${__('Metric')}</th>`);
-		header_row.append(`<th class="opening-header">${__('Opening')}</th>`);
 
-		const dates = differences.map((diff) => diff.date || __('Snapshot'));
+		const dates = snapshots.map((snapshot) => snapshot.date || snapshot.label);
 		dates.forEach((date_label) => {
 			header_row.append(`<th>${frappe.utils.escape_html(date_label)}</th>`);
 		});
@@ -751,25 +779,62 @@ itec_integrations.pages.StylusStockVariance = class StylusStockVariance {
 		const totals = item.totals || {};
 		const total_positive = Number(totals.positive || 0);
 		const total_negative = Math.abs(Number(totals.negative || 0));
-		const net_difference = differences.reduce(
-			(sum, diff) => sum + (Number(diff.difference) || 0),
-			0
-		);
-		const current_balance = differences.length
-			? differences[differences.length - 1].stock
-			: opening_balance;
+		const current_balance = snapshots[snapshots.length - 1]?.stock || 0;
 
 		const variance_row = $('<tr class="variance-row"></tr>').appendTo(tbody);
 		$('<td class="metric-label"></td>').text(__('Variance')).appendTo(variance_row);
-		const variance_opening_cell = $('<td class="number-cell text-center opening-cell" rowspan="2"></td>').appendTo(variance_row);
-		this.render_number_cell(variance_opening_cell, opening_balance, { show_sign: false });
 
-		differences.forEach((diff) => {
-			const value = Number(diff.difference) || 0;
+		snapshots.forEach((snapshot, index) => {
 			const cell = $('<td class="number-cell"></td>').appendTo(variance_row);
+			if (index === 0) {
+				cell.addClass('placeholder-cell').text('—');
+				return;
+			}
+
+			const value = varianceByDate[snapshot.date];
+			if (value === undefined || value === null) {
+				cell.addClass('placeholder-cell').text('—');
+				return;
+			}
+
 			cell.addClass(value >= 0 ? 'positive' : 'negative');
 			this.render_number_cell(cell, value, { show_sign: true });
 		});
+		this.append_summary_placeholders(variance_row);
+
+		const balance_row = $('<tr class="balance-row"></tr>').appendTo(tbody);
+		$('<td class="metric-label"></td>').text(__('Balance')).appendTo(balance_row);
+
+		snapshots.forEach((snapshot, index) => {
+			const cell = $('<td class="number-cell"></td>').appendTo(balance_row);
+			// Ensure first entry balance is always displayed correctly
+			const stockValue = snapshot.stock !== undefined && snapshot.stock !== null 
+				? Number(snapshot.stock) 
+				: 0;
+			this.render_number_cell(cell, stockValue, { show_sign: false, absolute: false });
+		});
+		this.append_summary_placeholders(balance_row);
+
+		const price_row = $('<tr class="price-row"></tr>').appendTo(tbody);
+		$('<td class="metric-label"></td>').text(__('Price')).appendTo(price_row);
+
+		snapshots.forEach((snapshot) => {
+			const priceCell = $('<td class="number-cell"></td>').appendTo(price_row);
+			if (
+				snapshot.price !== undefined &&
+				snapshot.price !== null &&
+				!Number.isNaN(Number(snapshot.price))
+			) {
+				priceCell.text(this.format_currency(snapshot.price));
+			} else {
+				priceCell.addClass('placeholder-cell').text('—');
+			}
+		});
+		this.append_summary_placeholders(price_row);
+
+		const totals_row = $('<tr class="totals-row"></tr>').appendTo(tbody);
+		$('<td class="metric-label"></td>').text(__('Totals')).appendTo(totals_row);
+		this.add_placeholder_cells(totals_row, dates.length);
 
 		const totals_cells = [
 			{ value: total_negative, className: 'number-cell total-negative', showSign: false },
@@ -778,18 +843,25 @@ itec_integrations.pages.StylusStockVariance = class StylusStockVariance {
 		];
 
 		totals_cells.forEach(({ value, className, showSign }) => {
-			const cell = $(`<td class="${className}" rowspan="2"></td>`).appendTo(variance_row);
+			const cell = $(`<td class="${className}"></td>`).appendTo(totals_row);
 			this.render_number_cell(cell, value, { show_sign: showSign });
 		});
+	}
 
-		const balance_row = $('<tr class="balance-row"></tr>').appendTo(tbody);
-		$('<td class="metric-label"></td>').text(__('Balance')).appendTo(balance_row);
+	append_summary_placeholders(row) {
+		this.add_placeholder_cells(row, 3);
+	}
 
-		differences.forEach((diff) => {
-			const cell = $('<td class="number-cell"></td>').appendTo(balance_row);
-			this.render_number_cell(cell, diff.stock, { show_sign: false, absolute: false });
-		});
+	add_placeholder_cells(row, count, placeholderText = '—') {
+		for (let i = 0; i < count; i += 1) {
+			$('<td class="number-cell placeholder-cell"></td>').text(placeholderText).appendTo(row);
+		}
+	}
 
+	extract_date_from_label(label = '') {
+		if (!label) return '';
+		const [datePart] = label.split(' ');
+		return datePart;
 	}
 
 	render_chart(item, parent) {
@@ -801,7 +873,7 @@ itec_integrations.pages.StylusStockVariance = class StylusStockVariance {
 			return null;
 		}
 
-		const labels = history.map((entry) => entry.label);
+		const labels = history.map((entry) => entry.date || entry.label);
 		const values = history.map((entry) => Number(entry.stock) || 0);
 		const chart_container = $('<div></div>').appendTo(parent).get(0);
 

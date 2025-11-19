@@ -36,7 +36,8 @@ def execute(filters=None):
 		{"label": "Item Code", "fieldname": "code", "fieldtype": "Data", "width": 150},
 		{"label": "Designation", "fieldname": "designation", "fieldtype": "Data", "width": 200},
 		{"label": "Main Category", "fieldname": "main_category", "fieldtype": "Data", "width": 150},
-		{"label": "Brand", "fieldname": "brand", "fieldtype": "Data", "width": 150}
+		{"label": "Brand", "fieldname": "brand", "fieldtype": "Data", "width": 150},
+		{"label": "Price", "fieldname": "price", "fieldtype": "Currency", "width": 120},
 	]
  
 	for date in date_list:

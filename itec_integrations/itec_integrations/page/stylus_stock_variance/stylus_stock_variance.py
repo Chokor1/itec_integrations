@@ -123,6 +123,7 @@ def _build_items(rows: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
 			"label": format_datetime(row.get("creation"), "yyyy-MM-dd HH:mm"),
 			"timestamp": row.get("creation"),
 			"stock": flt(row.get("stock")),
+			"price": flt(row.get("price")),
 		}
 		item["history"].append(history_entry)
 		item["last_updated"] = history_entry["label"]
@@ -160,6 +161,7 @@ def _append_difference(item: Dict[str, Any], current_entry: Dict[str, Any]) -> N
 		"date": date_label,
 		"difference": diff,
 		"stock": _round(current_entry["stock"]),
+		"price": flt(current_entry.get("price")),
 	}
 
 	item["differences"].append(diff_record)
@@ -206,19 +208,55 @@ def _round(value: float) -> float:
 
 
 def _compress_history(entries: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+	if not entries:
+		return []
+	
 	compressed = []
 	last_stock = None
+	last_price = None
+	first_entry_added = False
 
 	for entry in entries:
 		stock_value = _round(entry.get("stock") or 0)
-		if last_stock is None or stock_value != last_stock:
+		price_value = entry.get("price")
+		if price_value is None:
+			price_value = last_price
+		else:
+			price_value = flt(price_value)
+
+		# Always include the first entry to ensure opening balance is shown
+		if last_stock is None or stock_value != last_stock or price_value != last_price:
 			compressed.append(
 				{
 					"label": entry.get("label"),
+					"date": format_datetime(entry.get("timestamp"), "dd-MM-yyyy") if entry.get("timestamp") else entry.get("label"),
 					"stock": stock_value,
+					"price": price_value,
 				}
 			)
+			# Track if first entry was added
+			if last_stock is None:
+				first_entry_added = True
 			last_stock = stock_value
+			last_price = price_value
+		else:
+			if compressed:
+				compressed[-1]["price"] = price_value
+
+	# Ensure first entry is always included as opening balance
+	if not first_entry_added and entries:
+		first_entry = entries[0]
+		first_stock = _round(first_entry.get("stock") or 0)
+		first_price = first_entry.get("price")
+		if first_price is not None:
+			first_price = flt(first_price)
+		
+		compressed.insert(0, {
+			"label": first_entry.get("label"),
+			"date": format_datetime(first_entry.get("timestamp"), "dd-MM-yyyy") if first_entry.get("timestamp") else first_entry.get("label"),
+			"stock": first_stock,
+			"price": first_price,
+		})
 
 	return compressed
 
