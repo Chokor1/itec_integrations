@@ -55,6 +55,7 @@ def execute(filters=None):
 			`designation`,
 			`main_category`,
 			`brand`,
+			`price`,
 			DATE(`creation`) AS `date`,
 			`stock` AS `stock`
 		FROM
@@ -71,17 +72,31 @@ def execute(filters=None):
 		key = row.code
 		date = row.date.strftime("%Y-%m-%d")
 		stock = row.stock
+		price = row.price
 
 		if key not in item_map:
 			item_map[key] = {
 				"code": row.code,
 				"designation": row.designation,
 				"main_category": row.main_category,
-				"brand": row.brand
+				"brand": row.brand,
+				"price": price,
+				"_latest_date": date
 			}
+		else:
+			# Update price if this is a more recent date
+			if date > item_map[key]["_latest_date"]:
+				item_map[key]["price"] = price
+				item_map[key]["_latest_date"] = date
 
 		item_map[key][date] = stock
 
-	# Step 5: Return columns and data
-	data = list(item_map.values())
+	# Step 5: Clean up temporary fields and return data
+	data = []
+	for item in item_map.values():
+		# Remove temporary tracking field
+		if "_latest_date" in item:
+			del item["_latest_date"]
+		data.append(item)
+	
 	return columns, data
