@@ -786,7 +786,9 @@ itec_integrations.pages.StylusStockVariance = class StylusStockVariance {
 
 		snapshots.forEach((snapshot, index) => {
 			const cell = $('<td class="number-cell"></td>').appendTo(variance_row);
-			if (index === 0) {
+			
+			// Only skip variance for actual "Opening" entries (opening balance from before from_date)
+			if (index === 0 && (snapshot.date === 'Opening' || snapshot.label === 'Opening')) {
 				cell.addClass('placeholder-cell').text('—');
 				return;
 			}
@@ -948,11 +950,11 @@ itec_integrations.pages.StylusStockVariance = class StylusStockVariance {
 		const formatter =
 			(frappe.utils && frappe.utils.format_number) ||
 			(function (val, opts) {
-				const precision = opts?.precision ?? 3;
+				const precision = opts?.precision ?? 0;
 				return (val || 0).toFixed(precision);
 			});
 
-		return formatter(number, { precision: 3 });
+		return formatter(number, { precision: 0 });
 	}
 
 	format_currency(value) {
@@ -961,9 +963,12 @@ itec_integrations.pages.StylusStockVariance = class StylusStockVariance {
 		}
 
 		if (frappe.utils && frappe.utils.format_currency) {
-			return frappe.utils.format_currency(value);
+			const currency = frappe.boot.sysdefaults.currency || frappe.defaults.get_default("currency") || 'USD';
+			return frappe.utils.format_currency(value, currency, 2);
 		}
 
-		return this.format_number(value);
+		// Fallback: format with 2 decimal places and add basic currency symbol
+		const formatted = Number(value).toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ",");
+		return formatted;
 	}
 };
