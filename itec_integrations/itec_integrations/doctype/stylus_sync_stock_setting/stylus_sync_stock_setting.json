@@ -9,6 +9,10 @@
   "enabled",
   "access_key",
   "last_inventory_sync",
+  "section_backfill",
+  "backfill_from_date",
+  "column_break_backfill",
+  "backfill_to_date",
   "excluded_items_from_sync_to_website_section",
   "excluded_items"
  ],
@@ -32,6 +36,26 @@
    "fieldtype": "Datetime",
    "label": "Last Inventory Sync",
    "read_only": 1
+  },
+  {
+   "fieldname": "section_backfill",
+   "fieldtype": "Section Break",
+   "label": "Backfill Price Changes",
+   "description": "Walk existing Stylus Stock History records between the selected dates and generate Stylus Price Change Log rows for any price differences. Use the 'Run Backfill' button after picking the range."
+  },
+  {
+   "fieldname": "backfill_from_date",
+   "fieldtype": "Date",
+   "label": "From Date"
+  },
+  {
+   "fieldname": "column_break_backfill",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "backfill_to_date",
+   "fieldtype": "Date",
+   "label": "To Date"
   },
   {
    "fieldname": "excluded_items_from_sync_to_website_section",
