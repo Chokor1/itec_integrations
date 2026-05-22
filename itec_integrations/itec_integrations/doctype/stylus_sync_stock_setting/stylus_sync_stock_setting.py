@@ -58,6 +58,7 @@ def run_sync():
 
 		history_doc.insert(ignore_permissions=True)
 		_record_price_changes(history_doc)
+		_record_new_items(history_doc)
 		_cleanup_stylus_stock_history_duplicates(getdate(history_doc.creation))
 		setting.last_inventory_sync = now()
 		setting.save()
@@ -119,6 +120,53 @@ def _record_price_changes(history_doc):
 				"change_amount": change_amount,
 				"change_pct": change_pct,
 				"direction": "Increase" if change_amount > 0 else "Decrease",
+			}
+		)
+		log.insert(ignore_permissions=True)
+
+
+def _record_new_items(history_doc):
+	"""Compare item codes in the just-inserted Stylus Stock History against the
+	most recent prior history and persist a Stylus New Item Log row per item
+	whose code did not exist in the previous snapshot."""
+	previous = frappe.get_all(
+		"Stylus Stock History",
+		filters={"name": ["!=", history_doc.name]},
+		order_by="creation desc",
+		limit=1,
+		pluck="name",
+	)
+	if not previous:
+		return
+
+	previous_name = previous[0]
+	prev_codes = set(
+		frappe.get_all(
+			"Stylus Stock History Item",
+			filters={"parent": previous_name},
+			pluck="code",
+		)
+	)
+
+	sync_dt = history_doc.creation or now()
+
+	for item in history_doc.items:
+		code = item.code
+		if not code or code in prev_codes:
+			continue
+
+		log = frappe.get_doc(
+			{
+				"doctype": "Stylus New Item Log",
+				"code": code,
+				"designation": item.designation,
+				"main_category": item.main_category,
+				"brand": item.brand,
+				"stock_history": history_doc.name,
+				"previous_stock_history": previous_name,
+				"sync_datetime": sync_dt,
+				"price": flt(item.price),
+				"stock": flt(item.stock),
 			}
 		)
 		log.insert(ignore_permissions=True)
@@ -255,6 +303,123 @@ def _price_map_for_history(history_name):
 	return {r.code: flt(r.price) for r in rows if r.code}
 
 
+@frappe.whitelist()
+def backfill_new_items(from_date=None, to_date=None, run_in_background=True):
+	"""Walk every Stylus Stock History record in [from_date, to_date] in
+	chronological order and create Stylus New Item Log rows for each item code
+	that appears for the first time relative to its predecessor history.
+	Idempotent: skips a (history, code) pair if a log already exists for it."""
+	setting = frappe.get_single("Stylus Sync Stock Setting")
+	from_date = getdate(from_date or setting.backfill_from_date)
+	to_date = getdate(to_date or setting.backfill_to_date)
+
+	if not from_date or not to_date:
+		frappe.throw("Please set both From Date and To Date for the backfill.")
+	if from_date > to_date:
+		frappe.throw("From Date must be on or before To Date.")
+
+	if run_in_background and str(run_in_background).lower() not in ("0", "false"):
+		frappe.enqueue(
+			"itec_integrations.itec_integrations.doctype.stylus_sync_stock_setting.stylus_sync_stock_setting._run_backfill_new_items",
+			queue="long",
+			timeout=3600,
+			from_date=from_date.isoformat(),
+			to_date=to_date.isoformat(),
+		)
+		return {"queued": True, "from_date": from_date.isoformat(), "to_date": to_date.isoformat()}
+
+	return _run_backfill_new_items(from_date.isoformat(), to_date.isoformat())
+
+
+def _run_backfill_new_items(from_date, to_date):
+	from_date = getdate(from_date)
+	to_date = getdate(to_date)
+	range_start = f"{from_date.isoformat()} 00:00:00"
+	range_end = f"{to_date.isoformat()} 23:59:59"
+
+	histories = frappe.get_all(
+		"Stylus Stock History",
+		filters={"creation": ["between", (range_start, range_end)]},
+		order_by="creation asc",
+		fields=["name", "creation"],
+	)
+	if len(histories) < 2:
+		frappe.logger().info(
+			f"Stylus new-item backfill: nothing to do, found {len(histories)} history rows in range"
+		)
+		return {"queued": False, "histories": len(histories), "logs_created": 0}
+
+	prior = frappe.get_all(
+		"Stylus Stock History",
+		filters={"creation": ["<", range_start]},
+		order_by="creation desc",
+		limit=1,
+		fields=["name"],
+	)
+	prev_name = prior[0].name if prior else None
+	prev_codes = _code_set_for_history(prev_name) if prev_name else None
+
+	logs_created = 0
+	for hist in histories:
+		current_name = hist.name
+		current_rows = frappe.get_all(
+			"Stylus Stock History Item",
+			filters={"parent": current_name},
+			fields=["code", "designation", "price", "stock", "main_category", "brand"],
+		)
+
+		if prev_codes is not None:
+			existing_log_codes = set(
+				frappe.get_all(
+					"Stylus New Item Log",
+					filters={"stock_history": current_name},
+					pluck="code",
+				)
+			)
+
+			for row in current_rows:
+				code = row.code
+				if not code or code in prev_codes:
+					continue
+				if code in existing_log_codes:
+					continue
+
+				log = frappe.get_doc(
+					{
+						"doctype": "Stylus New Item Log",
+						"code": code,
+						"designation": row.designation,
+						"main_category": row.main_category,
+						"brand": row.brand,
+						"stock_history": current_name,
+						"previous_stock_history": prev_name,
+						"sync_datetime": hist.creation,
+						"price": flt(row.price),
+						"stock": flt(row.stock),
+					}
+				)
+				log.insert(ignore_permissions=True)
+				logs_created += 1
+
+		prev_name = current_name
+		prev_codes = {r.code for r in current_rows if r.code}
+
+	frappe.db.commit()
+	frappe.logger().info(
+		f"Stylus new-item backfill done: {len(histories)} histories scanned, {logs_created} new-item logs created"
+	)
+	return {"queued": False, "histories": len(histories), "logs_created": logs_created}
+
+
+def _code_set_for_history(history_name):
+	rows = frappe.get_all(
+		"Stylus Stock History Item",
+		filters={"parent": history_name},
+		pluck="code",
+	)
+	return {c for c in rows if c}
+
+
 def _cleanup_stylus_stock_history_duplicates(target_date=None):
 	if not target_date:
 		target_date = getdate()
@@ -296,6 +461,21 @@ def _cleanup_stylus_stock_history_duplicates(target_date=None):
 		)
 		frappe.db.set_value(
 			"Stylus Price Change Log",
+			{"previous_stock_history": ["in", names_to_remove]},
+			"previous_stock_history",
+			None,
+			update_modified=False,
+		)
+	if frappe.db.exists("DocType", "Stylus New Item Log"):
+		frappe.db.set_value(
+			"Stylus New Item Log",
+			{"stock_history": ["in", names_to_remove]},
+			"stock_history",
+			None,
+			update_modified=False,
+		)
+		frappe.db.set_value(
+			"Stylus New Item Log",
 			{"previous_stock_history": ["in", names_to_remove]},
 			"previous_stock_history",
 			None,
