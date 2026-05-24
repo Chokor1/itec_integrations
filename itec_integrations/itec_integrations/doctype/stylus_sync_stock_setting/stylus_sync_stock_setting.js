@@ -44,25 +44,25 @@ frappe.ui.form.on('Stylus Sync Stock Setting', {
 		}, __('Backfill Price Changes'));
 
 		frm.add_custom_button(__('Run Backfill'), function () {
-			if (!frm.doc.backfill_from_date || !frm.doc.backfill_to_date) {
-				frappe.msgprint(__('Please set both From Date and To Date before running the backfill.'));
+			if (!frm.doc.new_items_backfill_from_date || !frm.doc.new_items_backfill_to_date) {
+				frappe.msgprint(__('Please set both From Date and To Date in the Backfill New Items section before running the backfill.'));
 				return;
 			}
-			if (frm.doc.backfill_from_date > frm.doc.backfill_to_date) {
+			if (frm.doc.new_items_backfill_from_date > frm.doc.new_items_backfill_to_date) {
 				frappe.msgprint(__('From Date must be on or before To Date.'));
 				return;
 			}
 
 			frappe.confirm(
-				__('Backfill new items from {0} to {1}? This walks existing Stylus Stock History records and creates Stylus New Item Log rows for any item codes that appear for the first time. Existing logs will be preserved.',
-					[frappe.datetime.str_to_user(frm.doc.backfill_from_date),
-					 frappe.datetime.str_to_user(frm.doc.backfill_to_date)]),
+				__('Backfill new items from {0} to {1}? This walks existing Stylus Stock History records and creates Stylus New Item Log rows for any item codes that appear for the first time across all prior history. Existing logs will be preserved.',
+					[frappe.datetime.str_to_user(frm.doc.new_items_backfill_from_date),
+					 frappe.datetime.str_to_user(frm.doc.new_items_backfill_to_date)]),
 				function () {
 					frappe.call({
 						method: 'itec_integrations.itec_integrations.doctype.stylus_sync_stock_setting.stylus_sync_stock_setting.backfill_new_items',
 						args: {
-							from_date: frm.doc.backfill_from_date,
-							to_date: frm.doc.backfill_to_date,
+							from_date: frm.doc.new_items_backfill_from_date,
+							to_date: frm.doc.new_items_backfill_to_date,
 							run_in_background: 1,
 						},
 						freeze: true,

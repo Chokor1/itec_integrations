@@ -13,6 +13,10 @@
   "backfill_from_date",
   "column_break_backfill",
   "backfill_to_date",
+  "section_new_items_backfill",
+  "new_items_backfill_from_date",
+  "column_break_new_items_backfill",
+  "new_items_backfill_to_date",
   "excluded_items_from_sync_to_website_section",
   "excluded_items"
  ],
@@ -54,6 +58,26 @@
   },
   {
    "fieldname": "backfill_to_date",
+   "fieldtype": "Date",
+   "label": "To Date"
+  },
+  {
+   "fieldname": "section_new_items_backfill",
+   "fieldtype": "Section Break",
+   "label": "Backfill New Items",
+   "description": "Walk existing Stylus Stock History records between the selected dates and generate Stylus New Item Log rows for item codes that appear for the first time across all prior history."
+  },
+  {
+   "fieldname": "new_items_backfill_from_date",
+   "fieldtype": "Date",
+   "label": "From Date"
+  },
+  {
+   "fieldname": "column_break_new_items_backfill",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "new_items_backfill_to_date",
    "fieldtype": "Date",
    "label": "To Date"
   },

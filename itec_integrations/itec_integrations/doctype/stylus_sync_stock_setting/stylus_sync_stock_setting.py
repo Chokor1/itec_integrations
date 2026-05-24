@@ -127,8 +127,8 @@ def _record_price_changes(history_doc):
 
 def _record_new_items(history_doc):
 	"""Compare item codes in the just-inserted Stylus Stock History against the
-	most recent prior history and persist a Stylus New Item Log row per item
-	whose code did not exist in the previous snapshot."""
+	cumulative set of codes seen across every prior history and persist a
+	Stylus New Item Log row per item whose code has never appeared before."""
 	previous = frappe.get_all(
 		"Stylus Stock History",
 		filters={"name": ["!=", history_doc.name]},
@@ -140,19 +140,13 @@ def _record_new_items(history_doc):
 		return
 
 	previous_name = previous[0]
-	prev_codes = set(
-		frappe.get_all(
-			"Stylus Stock History Item",
-			filters={"parent": previous_name},
-			pluck="code",
-		)
-	)
+	seen_codes = _seen_codes_excluding(history_doc.name)
 
 	sync_dt = history_doc.creation or now()
 
 	for item in history_doc.items:
 		code = item.code
-		if not code or code in prev_codes:
+		if not code or code in seen_codes:
 			continue
 
 		log = frappe.get_doc(
@@ -170,6 +164,32 @@ def _record_new_items(history_doc):
 			}
 		)
 		log.insert(ignore_permissions=True)
+
+
+def _seen_codes_excluding(history_name):
+	rows = frappe.db.sql(
+		"""
+		SELECT DISTINCT shi.code
+		FROM `tabStylus Stock History Item` shi
+		INNER JOIN `tabStylus Stock History` sh ON sh.name = shi.parent
+		WHERE sh.name != %s AND shi.code IS NOT NULL AND shi.code != ''
+		""",
+		(history_name,),
+	)
+	return {row[0] for row in rows}
+
+
+def _seen_codes_before(creation_dt):
+	rows = frappe.db.sql(
+		"""
+		SELECT DISTINCT shi.code
+		FROM `tabStylus Stock History Item` shi
+		INNER JOIN `tabStylus Stock History` sh ON sh.name = shi.parent
+		WHERE sh.creation < %s AND shi.code IS NOT NULL AND shi.code != ''
+		""",
+		(creation_dt,),
+	)
+	return {row[0] for row in rows}
 
 
 @frappe.whitelist()
@@ -307,14 +327,15 @@ def _price_map_for_history(history_name):
 def backfill_new_items(from_date=None, to_date=None, run_in_background=True):
 	"""Walk every Stylus Stock History record in [from_date, to_date] in
 	chronological order and create Stylus New Item Log rows for each item code
-	that appears for the first time relative to its predecessor history.
-	Idempotent: skips a (history, code) pair if a log already exists for it."""
+	that appears for the first time across all prior history (not just the
+	immediately preceding snapshot). Idempotent: skips a (history, code) pair
+	if a log already exists for it."""
 	setting = frappe.get_single("Stylus Sync Stock Setting")
-	from_date = getdate(from_date or setting.backfill_from_date)
-	to_date = getdate(to_date or setting.backfill_to_date)
+	from_date = getdate(from_date or setting.new_items_backfill_from_date)
+	to_date = getdate(to_date or setting.new_items_backfill_to_date)
 
 	if not from_date or not to_date:
-		frappe.throw("Please set both From Date and To Date for the backfill.")
+		frappe.throw("Please set both From Date and To Date for the new-items backfill.")
 	if from_date > to_date:
 		frappe.throw("From Date must be on or before To Date.")
 
@@ -343,11 +364,9 @@ def _run_backfill_new_items(from_date, to_date):
 		order_by="creation asc",
 		fields=["name", "creation"],
 	)
-	if len(histories) < 2:
-		frappe.logger().info(
-			f"Stylus new-item backfill: nothing to do, found {len(histories)} history rows in range"
-		)
-		return {"queued": False, "histories": len(histories), "logs_created": 0}
+	if not histories:
+		frappe.logger().info("Stylus new-item backfill: nothing to do, no history rows in range")
+		return {"queued": False, "histories": 0, "logs_created": 0}
 
 	prior = frappe.get_all(
 		"Stylus Stock History",
@@ -357,7 +376,11 @@ def _run_backfill_new_items(from_date, to_date):
 		fields=["name"],
 	)
 	prev_name = prior[0].name if prior else None
-	prev_codes = _code_set_for_history(prev_name) if prev_name else None
+	# Cumulative set of every code ever seen strictly before the range. An item
+	# only counts as "new" if its code has never appeared in any earlier
+	# snapshot — not just the immediately previous one.
+	seen_codes = _seen_codes_before(range_start)
+	has_prior = bool(prev_name)
 
 	logs_created = 0
 	for hist in histories:
@@ -368,7 +391,7 @@ def _run_backfill_new_items(from_date, to_date):
 			fields=["code", "designation", "price", "stock", "main_category", "brand"],
 		)
 
-		if prev_codes is not None:
+		if has_prior:
 			existing_log_codes = set(
 				frappe.get_all(
 					"Stylus New Item Log",
@@ -379,7 +402,7 @@ def _run_backfill_new_items(from_date, to_date):
 
 			for row in current_rows:
 				code = row.code
-				if not code or code in prev_codes:
+				if not code or code in seen_codes:
 					continue
 				if code in existing_log_codes:
 					continue
@@ -401,23 +424,15 @@ def _run_backfill_new_items(from_date, to_date):
 				log.insert(ignore_permissions=True)
 				logs_created += 1
 
+		seen_codes.update(r.code for r in current_rows if r.code)
 		prev_name = current_name
-		prev_codes = {r.code for r in current_rows if r.code}
+		has_prior = True
 
 	frappe.db.commit()
 	frappe.logger().info(
 		f"Stylus new-item backfill done: {len(histories)} histories scanned, {logs_created} new-item logs created"
 	)
 	return {"queued": False, "histories": len(histories), "logs_created": logs_created}
-
-
-def _code_set_for_history(history_name):
-	rows = frappe.get_all(
-		"Stylus Stock History Item",
-		filters={"parent": history_name},
-		pluck="code",
-	)
-	return {c for c in rows if c}
 
 
 def _cleanup_stylus_stock_history_duplicates(target_date=None):
