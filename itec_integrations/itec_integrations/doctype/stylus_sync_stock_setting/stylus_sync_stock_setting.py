@@ -5,7 +5,9 @@
 from frappe.model.document import Document
 import requests
 import base64
+import io
 import frappe
+from frappe import _
 from frappe.utils import now, getdate, flt, add_days
 
 
@@ -66,6 +68,108 @@ def run_sync():
 	except Exception as e:
 		frappe.log_error(frappe.get_traceback(), "Stylus Sync Failed")
 		frappe.throw(f"Stylus Sync failed: {e}")
+
+
+# Status (column D) value that marks an item as available/in stock.
+_DISPONIVEL = "disponível"
+
+# Values that the Excel export uses for "no data"; treated as blank.
+_NA_VALUES = {"#N/A", "N/A", "#REF!", "#VALUE!", "-"}
+
+
+def _cell(value):
+	"""Trim a cell to a clean string, or None when empty."""
+	if value is None:
+		return None
+	text = str(value).strip()
+	return text or None
+
+
+def _no_na(value):
+	"""Collapse Excel error/placeholder markers to None."""
+	if value is None:
+		return None
+	return None if value.strip().upper() in _NA_VALUES else value
+
+
+@frappe.whitelist()
+def import_manual_stock_excel(file_url=None):
+	"""Build a Stylus Stock History from the manually-exported 'MAPA DE STOCKS'
+	Excel file. Use this when the Stylus API is unavailable.
+
+	Only rows whose Status (column D) is 'Disponível' are imported, and each is
+	recorded with stock = 1. Column mapping:
+		A -> code, C -> designation, F -> price (PVP AKZ),
+		O -> main_category (Família), Q -> brand (Marca).
+	Mirrors run_sync()'s post-insert steps (price-change / new-item logs and
+	duplicate cleanup) so manual imports behave like API syncs."""
+	import openpyxl
+
+	setting = frappe.get_single("Stylus Sync Stock Setting")
+	file_url = file_url or setting.manual_stock_import_file
+	if not file_url:
+		frappe.throw(_("Please attach the stock map Excel file first."))
+
+	file_doc = frappe.get_doc("File", {"file_url": file_url})
+	try:
+		workbook = openpyxl.load_workbook(
+			io.BytesIO(file_doc.get_content()), read_only=True, data_only=True
+		)
+	except Exception as e:
+		frappe.throw(_("Could not read the attached file as an Excel workbook: {0}").format(e))
+
+	worksheet = workbook.active
+	rows = worksheet.iter_rows(values_only=True)
+
+	# Locate the header row (the one carrying 'Código' and 'Status') so the
+	# import survives extra banner rows at the top of the export.
+	header_found = False
+	for row in rows:
+		labels = {(_cell(cell) or "").lower() for cell in row}
+		if "status" in labels and ("código" in labels or "codigo" in labels):
+			header_found = True
+			break
+	if not header_found:
+		frappe.throw(_("Could not find the header row (expected columns 'Código' and 'Status')."))
+
+	history_doc = frappe.get_doc({"doctype": "Stylus Stock History", "items": []})
+	imported = 0
+	skipped = 0
+	# `rows` is now positioned just after the header, so this continues over data.
+	for row in rows:
+		code = _cell(row[0]) if len(row) > 0 else None
+		status = _cell(row[3]) if len(row) > 3 else None
+		if not code and not status:
+			continue
+		if (status or "").lower() != _DISPONIVEL:
+			skipped += 1
+			continue
+
+		history_doc.append(
+			"items",
+			{
+				"code": code,
+				"designation": _cell(row[2]) if len(row) > 2 else None,
+				"price": flt(row[5]) if len(row) > 5 else 0,
+				"stock": 1,
+				"main_category": _no_na(_cell(row[14])) if len(row) > 14 else None,
+				"brand": _no_na(_cell(row[16])) if len(row) > 16 else None,
+			},
+		)
+		imported += 1
+
+	if not imported:
+		frappe.throw(_("No rows with status 'Disponível' were found in the file."))
+
+	history_doc.insert(ignore_permissions=True)
+	_record_price_changes(history_doc)
+	_record_new_items(history_doc)
+	_cleanup_stylus_stock_history_duplicates(getdate(history_doc.creation))
+	setting.last_inventory_sync = now()
+	setting.save()
+	frappe.db.commit()
+
+	return {"history": history_doc.name, "imported": imported, "skipped": skipped}
 
 
 def _record_price_changes(history_doc):

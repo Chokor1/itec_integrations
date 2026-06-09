@@ -9,6 +9,8 @@
   "enabled",
   "access_key",
   "last_inventory_sync",
+  "section_manual_import",
+  "manual_stock_import_file",
   "section_backfill",
   "backfill_from_date",
   "column_break_backfill",
@@ -40,6 +42,17 @@
    "fieldtype": "Datetime",
    "label": "Last Inventory Sync",
    "read_only": 1
+  },
+  {
+   "fieldname": "section_manual_import",
+   "fieldtype": "Section Break",
+   "label": "Manual Stock Import",
+   "description": "Fallback for when the Stylus API is unavailable. Attach the 'MAPA DE STOCKS' Excel export, then click 'Import Manual Stock'. Only rows with Status 'Disponível' are imported (each recorded with stock = 1). Column mapping: A=Code, C=Designation, F=Price (PVP AKZ), O=Main Category (Família), Q=Brand (Marca)."
+  },
+  {
+   "fieldname": "manual_stock_import_file",
+   "fieldtype": "Attach",
+   "label": "Stock Map Excel (.xlsx)"
   },
   {
    "fieldname": "section_backfill",

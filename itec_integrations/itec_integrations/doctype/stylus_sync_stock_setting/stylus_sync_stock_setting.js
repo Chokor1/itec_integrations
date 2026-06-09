@@ -3,6 +3,34 @@
 
 frappe.ui.form.on('Stylus Sync Stock Setting', {
 	refresh: function (frm) {
+		frm.add_custom_button(__('Import Manual Stock'), function () {
+			if (!frm.doc.manual_stock_import_file) {
+				frappe.msgprint(__('Please attach the stock map Excel file in the Manual Stock Import section first.'));
+				return;
+			}
+
+			frappe.confirm(
+				__('Import a new Stylus Stock History from the attached Excel? Only rows with Status "Disponível" are imported (each with stock = 1), using column F as the price.'),
+				function () {
+					frappe.call({
+						method: 'itec_integrations.itec_integrations.doctype.stylus_sync_stock_setting.stylus_sync_stock_setting.import_manual_stock_excel',
+						args: {
+							file_url: frm.doc.manual_stock_import_file,
+						},
+						freeze: true,
+						freeze_message: __('Importing stock from Excel...'),
+						callback: function (r) {
+							if (r.message) {
+								frappe.msgprint(__('Manual import complete. History: {0}. Rows imported (Disponível): {1}. Rows skipped: {2}.',
+									[r.message.history, r.message.imported, r.message.skipped]));
+								frm.reload_doc();
+							}
+						},
+					});
+				}
+			);
+		}, __('Manual Stock Import'));
+
 		frm.add_custom_button(__('Run Backfill'), function () {
 			if (!frm.doc.backfill_from_date || !frm.doc.backfill_to_date) {
 				frappe.msgprint(__('Please set both From Date and To Date before running the backfill.'));
