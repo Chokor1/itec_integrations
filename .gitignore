@@ -3,4 +3,4 @@
 *.egg-info
 *.swp
 tags
-itec_integrations/docs/current
+itec_integrations/docs/current__pycache__/
