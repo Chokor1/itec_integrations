@@ -31,9 +31,7 @@ app_license = "MIT"
 # page_js = {"page" : "public/js/file.js"}
 
 # include js in doctype views
-doctype_js = {
-    "Stylus Sync Stock Setting": "public/js/stylus_sync_stock_setting.js"
-}
+# doctype_js = {"doctype" : "public/js/doctype.js"}
 # doctype_list_js = {"doctype" : "public/js/doctype_list.js"}
 # doctype_tree_js = {"doctype" : "public/js/doctype_tree.js"}
 # doctype_calendar_js = {"doctype" : "public/js/doctype_calendar.js"}
@@ -113,9 +111,7 @@ scheduler_events = {
 	"all": [],
 	"daily": [],
 	"daily_long": [],
-	"hourly": [
-	"itec_integrations.itec_integrations.doctype.stylus_sync_stock_setting.stylus_sync_stock_setting.run_sync",
-	],
+	"hourly": [],
 	"hourly_long": [
 
 	],
